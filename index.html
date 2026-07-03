@@ -68,7 +68,7 @@
         <input
           ref="mdFileInput"
           type="file"
-          accept=".md,.markdown,.txt"
+          accept=".md,.markdown,.txt,.ipynb,application/x-ipynb+json"
           style="display: none"
           @change="onMdFileUpload"
         />
@@ -112,7 +112,7 @@
             <button class="tb-btn " @click="newFile" title="New file">
               <i class="ti ti-file-plus"></i>New
             </button>
-            <button class="tb-btn" @click="triggerMdUpload" title="Open Markdown">
+            <button class="tb-btn" @click="triggerMdUpload" title="Open Markdown or Notebook">
               <i class="ti ti-folder-open"></i>Open
             </button>
             <button class="tb-btn" @click="openExport" title="Export">
@@ -280,7 +280,7 @@
               style="color: var(--fg3); margin-top: 2px"
               @click="triggerMdUpload"
             >
-              <i class="ti ti-upload"></i>Upload .md
+              <i class="ti ti-upload"></i>Upload .md/.ipynb
             </button>
           </div>
           <div class="sb-scroll">
@@ -747,6 +747,44 @@
                       step=".1"
                       v-model.number="cParaGap"
                     /><span class="val">{{cParaGap.toFixed(1)}}em</span>
+                  </div>
+                  <div class="slider-row">
+                    <label>Text wrap</label>
+                    <input
+                      type="checkbox"
+                      v-model="previewTextWrap"
+                      style="width: auto; justify-self: end"
+                    />
+                  </div>
+                  <div class="slider-row">
+                    <label>Code size</label>
+                    <input
+                      type="range"
+                      min="0.75"
+                      max="1.4"
+                      step="0.02"
+                      v-model.number="previewCodeFontScale"
+                    />
+                    <span class="val">{{previewCodeFontScale.toFixed(2)}}x</span>
+                  </div>
+                  <div class="slider-row">
+                    <label>Code wrap</label>
+                    <input
+                      type="checkbox"
+                      v-model="previewCodeWrap"
+                      style="width: auto; justify-self: end"
+                    />
+                  </div>
+                  <div class="slider-row">
+                    <label>LaTeX size</label>
+                    <input
+                      type="range"
+                      min="0.75"
+                      max="1.6"
+                      step="0.02"
+                      v-model.number="previewLatexFontScale"
+                    />
+                    <span class="val">{{previewLatexFontScale.toFixed(2)}}x</span>
                   </div>
                 </div>
                 <div class="sp-section">
@@ -1314,6 +1352,29 @@
               <div class="export-card-name">Workspace ZIP</div>
               <div class="export-card-desc">All files + images</div>
             </div>
+            <div class="export-card" @click="openPosterBuilder">
+              <i class="ti ti-presentation"></i>
+              <div class="export-card-name">Research Poster</div>
+              <div class="export-card-desc">Section grid PDF</div>
+            </div>
+            <div
+              class="export-card"
+              v-if="hasQcmQuestions"
+              @click="exportQcmJson"
+            >
+              <i class="ti ti-list-check"></i>
+              <div class="export-card-name">QCM JSON</div>
+              <div class="export-card-desc">Questions + answers</div>
+            </div>
+            <div
+              class="export-card"
+              v-if="hasQcmQuestions"
+              @click="exportQcmAnswerSheet"
+            >
+              <i class="ti ti-file-check"></i>
+              <div class="export-card-name">QCM Sheet</div>
+              <div class="export-card-desc">Printable answer key</div>
+            </div>
           </div>
           <div class="pdf-settings" v-if="showPdfSettings">
             <div
@@ -1432,6 +1493,194 @@
                 <label class="form-label">Author</label
                 ><input v-model="exportAuthor" placeholder="Author name" />
               </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- POSTER BUILDER -->
+      <div
+        class="modal-overlay poster-builder-overlay"
+        v-if="showPosterBuilder"
+        @click.self="closePosterBuilder"
+      >
+        <div class="poster-builder-modal">
+          <div class="poster-builder-toolbar">
+            <div class="poster-builder-title">
+              <i class="ti ti-presentation"></i>Poster Builder
+            </div>
+            <div class="poster-builder-actions">
+              <button class="tool-btn" @click="printPoster" title="Print poster">
+                <i class="ti ti-printer"></i>
+              </button>
+              <button class="tool-btn" @click="closePosterBuilder" title="Close">
+                <i class="ti ti-x"></i>
+              </button>
+            </div>
+          </div>
+          <div class="poster-builder-body">
+            <aside class="poster-controls">
+              <div class="poster-control-group">
+                <label class="form-label">Title</label>
+                <input v-model="posterTitle" />
+              </div>
+              <div class="poster-control-group">
+                <label class="form-label">Subtitle</label>
+                <input v-model="posterSubtitle" />
+              </div>
+              <div class="poster-control-grid">
+                <div class="poster-control-group">
+                  <label class="form-label">Size</label>
+                  <select v-model="posterSize">
+                    <option
+                      v-for="size in posterSizeOptions"
+                      :key="size.id"
+                      :value="size.id"
+                    >
+                      {{size.label}}
+                    </option>
+                  </select>
+                </div>
+                <div class="poster-control-group">
+                  <label class="form-label">Orientation</label>
+                  <select v-model="posterOrientation">
+                    <option value="landscape">Landscape</option>
+                    <option value="portrait">Portrait</option>
+                  </select>
+                </div>
+              </div>
+              <div class="poster-control-group">
+                <label class="form-label">Columns</label>
+                <div class="poster-range-row">
+                  <input
+                    type="range"
+                    min="2"
+                    max="4"
+                    step="1"
+                    v-model.number="posterColumns"
+                  />
+                  <span>{{posterColumns}}</span>
+                </div>
+              </div>
+              <div class="poster-control-group">
+                <label class="form-label">Theme</label>
+                <select v-model="posterTheme">
+                  <option
+                    v-for="theme in posterThemeOptions"
+                    :key="theme.id"
+                    :value="theme.id"
+                  >
+                    {{theme.label}}
+                  </option>
+                </select>
+              </div>
+              <div class="poster-panel-count">
+                <i class="ti ti-layout-grid"></i>{{posterPanels.length}} panels
+              </div>
+              <div class="poster-layout-editor">
+                <div class="poster-layout-head">
+                  <span>Layout</span>
+                  <div class="poster-layout-actions">
+                    <button class="mini-btn" @click="resetPosterLayout" title="Auto-fill slots">
+                      <i class="ti ti-sparkles"></i>
+                    </button>
+                    <button class="mini-btn" @click="addPosterSlot" title="Add slot">
+                      <i class="ti ti-plus"></i>
+                    </button>
+                  </div>
+                </div>
+                <div class="poster-slot-list">
+                  <div
+                    class="poster-slot-row"
+                    :class="{ 'is-drop-target': posterDragSectionId }"
+                    v-for="(slotId, index) in posterLayout"
+                    :key="'poster-slot-'+index"
+                    @dragover.prevent
+                    @drop.prevent="dropPosterSection(index)"
+                  >
+                    <span class="poster-slot-number">{{index + 1}}</span>
+                    <select
+                      :value="slotId"
+                      @change="setPosterSlot(index, $event.target.value)"
+                    >
+                      <option value="">Empty</option>
+                      <option
+                        v-for="section in posterSections"
+                        :key="section.id"
+                        :value="section.id"
+                      >
+                        {{section.title}}
+                      </option>
+                    </select>
+                    <button
+                      class="mini-btn"
+                      @click="movePosterSlot(index, -1)"
+                      :disabled="index===0"
+                      title="Move up"
+                    >
+                      <i class="ti ti-arrow-up"></i>
+                    </button>
+                    <button
+                      class="mini-btn"
+                      @click="movePosterSlot(index, 1)"
+                      :disabled="index===posterLayout.length-1"
+                      title="Move down"
+                    >
+                      <i class="ti ti-arrow-down"></i>
+                    </button>
+                    <button class="mini-btn" @click="clearPosterSlot(index)" title="Clear slot">
+                      <i class="ti ti-eraser"></i>
+                    </button>
+                    <button
+                      class="mini-btn"
+                      @click="removePosterSlot(index)"
+                      :disabled="posterLayout.length<=1"
+                      title="Remove slot"
+                    >
+                      <i class="ti ti-minus"></i>
+                    </button>
+                  </div>
+                </div>
+                <div class="poster-section-bank">
+                  <div
+                    class="poster-section-chip"
+                    v-for="section in posterSections"
+                    :key="'poster-section-'+section.id"
+                    draggable="true"
+                    @dragstart="beginPosterSectionDrag(section.id)"
+                    @dragend="endPosterSectionDrag"
+                  >
+                    <i class="ti ti-grip-vertical"></i>
+                    <span>{{section.title}}</span>
+                  </div>
+                </div>
+              </div>
+            </aside>
+            <div class="poster-preview-shell">
+              <article
+                ref="posterPreviewRef"
+                class="poster-canvas"
+                :class="'poster-theme-'+posterTheme"
+                :style="posterCanvasStyle"
+              >
+                <header class="poster-header">
+                  <h1>{{posterTitle}}</h1>
+                  <p>{{posterSubtitle}}</p>
+                </header>
+                <section class="poster-grid">
+                  <article
+                    class="poster-panel"
+                    v-for="panel in posterPanels"
+                    :key="panel.id"
+                  >
+                    <h2>{{panel.title}}</h2>
+                    <div
+                      class="poster-panel-body md-body"
+                      v-html="panel.html"
+                    ></div>
+                  </article>
+                </section>
+              </article>
             </div>
           </div>
         </div>

@@ -160,6 +160,233 @@ function stableHash(value) {
   return (hash >>> 0).toString(36);
 }
 
+function renderQcmRichText(text, block = false) {
+  const mathBlocks = [];
+  let source = String(text || "");
+  source = source.replace(/\$\$([\s\S]+?)\$\$/g, (match, expr) => {
+    const id = `QCMKATEXDISPLAY${mathBlocks.length}XYZ`;
+    mathBlocks.push({ id, expr, displayMode: true, fallback: match });
+    return id;
+  });
+  source = source.replace(/\$([^\n$]+?)\$/g, (match, expr) => {
+    const id = `QCMKATEXINLINE${mathBlocks.length}XYZ`;
+    mathBlocks.push({ id, expr, displayMode: false, fallback: match });
+    return id;
+  });
+
+  let html = escHtml(source).replace(/\n/g, block ? "<br>" : " ");
+  if (window.marked?.parseInline) {
+    html = sanitizeHtml(marked.parseInline(source));
+    if (block) html = html.replace(/\n/g, "<br>");
+  }
+
+  mathBlocks.forEach((math) => {
+    let rendered = escHtml(math.fallback);
+    if (window.katex) {
+      try {
+        rendered = katex.renderToString(math.expr.trim(), {
+          displayMode: math.displayMode,
+          throwOnError: false,
+        });
+      } catch {
+        rendered = escHtml(math.fallback);
+      }
+    }
+    const wrapper = math.displayMode
+      ? `<span class="qcm-katex-display">${rendered}</span>`
+      : `<span class="qcm-katex-inline">${rendered}</span>`;
+    html = html.replace(math.id, wrapper);
+  });
+
+  return html;
+}
+
+function renderQcmWidget(question) {
+  const multiple = question.choices.filter((choice) => choice.correct).length > 1;
+  const required = question.choices.filter((choice) => choice.correct).length || 1;
+  const inputType = multiple ? "checkbox" : "radio";
+  const choices = question.choices
+    .map((choice, index) => `
+      <label class="qcm-choice">
+        <input type="${inputType}" name="${escHtml(question.id)}" data-correct="${choice.correct ? "true" : "false"}">
+        <span class="qcm-choice-marker">${String.fromCharCode(65 + index)}</span>
+        <span class="qcm-choice-text">${renderQcmRichText(choice.text)}</span>
+      </label>`)
+    .join("");
+  const explanation = question.explanation
+    ? `<div class="qcm-explanation" hidden>${renderQcmRichText(question.explanation, true)}</div>`
+    : "";
+  const typeLabel = multiple ? `${required} answers` : "1 answer";
+  return `<section class="qcm-widget" data-qcm-id="${escHtml(question.id)}" data-qcm-required="${required}" data-qcm-multiple="${multiple ? "true" : "false"}">
+    <div class="qcm-header">
+      <div class="qcm-question">${renderQcmRichText(question.question, true)}</div>
+      <span class="qcm-type">${escHtml(typeLabel)}</span>
+    </div>
+    <div class="qcm-choices">${choices}</div>
+    <div class="qcm-actions">
+      <button type="button" class="qcm-check">Check</button>
+      <span class="qcm-feedback" aria-live="polite"></span>
+    </div>
+    ${explanation}
+  </section>`;
+}
+
+function extractQcmBlocks(markdown, renderWidgets = true) {
+  const lines = String(markdown || "").split("\n");
+  const widgets = [];
+  const out = [];
+  let index = 0;
+
+  while (index < lines.length) {
+    if (!lines[index].trim().startsWith("??")) {
+      out.push(lines[index]);
+      index++;
+      continue;
+    }
+
+    const start = index;
+    const questionLines = [lines[index].trim().replace(/^\?\?\s*/, "")];
+    const choices = [];
+    const explanationLines = [];
+    let mode = "question";
+    index++;
+
+    while (index < lines.length) {
+      const line = lines[index];
+      const trimmed = line.trim();
+      if (trimmed === "---" || trimmed.startsWith("??")) break;
+      const choice = trimmed.match(/^[-*]\s+\[(x|X| )\]\s+(.+)$/);
+      if (choice) {
+        mode = "choices";
+        choices.push({ correct: choice[1].toLowerCase() === "x", text: choice[2] });
+      } else if (trimmed.startsWith("?!")) {
+        mode = "explanation";
+        explanationLines.push(trimmed.replace(/^\?!\s*/, ""));
+      } else if (mode === "explanation") {
+        explanationLines.push(line);
+      } else if (mode === "question" && trimmed) {
+        questionLines.push(line);
+      }
+      index++;
+    }
+
+    if (choices.length) {
+      const id = `qcm-${widgets.length}-${stableHash(questionLines.join("\n") + choices.map((c) => c.text).join("|"))}`;
+      const placeholder = `QCMWIDGETPLACEHOLDER${widgets.length}XYZ`;
+      const question = {
+        id,
+        question: questionLines.join("\n").trim(),
+        choices,
+        explanation: explanationLines.join("\n").trim(),
+      };
+      widgets.push({
+        placeholder,
+        question,
+        html: renderWidgets ? renderQcmWidget(question) : "",
+      });
+      out.push(placeholder);
+      if (lines[index]?.trim() === "---") index++;
+    } else {
+      out.push(...lines.slice(start, index));
+    }
+  }
+
+  return { source: out.join("\n"), widgets };
+}
+
+function updateQcmChoiceStates(widget, showCorrectness = false) {
+  widget.querySelectorAll(".qcm-choice").forEach((choice) => {
+    const input = choice.querySelector("input[data-correct]");
+    const checked = Boolean(input?.checked);
+    const correct = input?.dataset.correct === "true";
+    choice.classList.toggle("is-selected", checked);
+    choice.classList.toggle("is-choice-correct", showCorrectness && correct);
+    choice.classList.toggle("is-choice-wrong", showCorrectness && checked && !correct);
+  });
+}
+
+function updateQcmWidget(widget, force = false) {
+  const inputs = Array.from(widget.querySelectorAll("input[data-correct]"));
+  const selectedCount = inputs.filter((input) => input.checked).length;
+  const required = Number(widget.dataset.qcmRequired || 1);
+  const multiple = widget.dataset.qcmMultiple === "true";
+  const ready = selectedCount > 0 && (!multiple || selectedCount >= required || force);
+  const partial = multiple && selectedCount > 0 && selectedCount < required && !force;
+  const correct = ready && inputs.every((input) =>
+    (input.dataset.correct === "true") === input.checked,
+  );
+  widget.classList.toggle("is-pending", partial);
+  widget.classList.toggle("is-correct", correct);
+  widget.classList.toggle("is-incorrect", ready && !correct);
+  updateQcmChoiceStates(widget, ready);
+  const feedback = widget.querySelector(".qcm-feedback");
+  if (feedback) {
+    feedback.textContent = !selectedCount
+      ? "Choose an answer"
+      : partial
+        ? `${selectedCount}/${required} selected`
+        : correct
+          ? "Correct"
+          : "Review your answer";
+  }
+  const explanation = widget.querySelector(".qcm-explanation");
+  if (explanation) explanation.hidden = !ready;
+}
+
+function enhanceQcmWidgets(container) {
+  container.querySelectorAll(".qcm-widget:not([data-qcm-ready])").forEach((widget) => {
+    widget.dataset.qcmReady = "true";
+    widget.querySelectorAll("input[data-correct]").forEach((input) => {
+      input.addEventListener("change", () => updateQcmWidget(widget, false));
+    });
+    widget.querySelector(".qcm-check")?.addEventListener("click", () => {
+      updateQcmWidget(widget, true);
+    });
+  });
+}
+
+function getQcmExportScript() {
+  return `<script>
+function updateQcmChoiceStates(widget,showCorrectness){
+  [].slice.call(widget.querySelectorAll(".qcm-choice")).forEach(function(choice){
+    var input=choice.querySelector("input[data-correct]");
+    var checked=!!(input&&input.checked);
+    var correct=input&&input.dataset.correct==="true";
+    choice.classList.toggle("is-selected",checked);
+    choice.classList.toggle("is-choice-correct",!!showCorrectness&&correct);
+    choice.classList.toggle("is-choice-wrong",!!showCorrectness&&checked&&!correct);
+  });
+}
+function updateQcmWidget(widget,force){
+  if(!widget)return;
+  var inputs=[].slice.call(widget.querySelectorAll("input[data-correct]"));
+  var selectedCount=inputs.filter(function(input){return input.checked;}).length;
+  var required=Number(widget.dataset.qcmRequired||1);
+  var multiple=widget.dataset.qcmMultiple==="true";
+  var ready=selectedCount>0&&(!multiple||selectedCount>=required||force);
+  var partial=multiple&&selectedCount>0&&selectedCount<required&&!force;
+  var correct=ready&&inputs.every(function(input){return (input.dataset.correct==="true")===input.checked;});
+  widget.classList.toggle("is-pending",partial);
+  widget.classList.toggle("is-correct",correct);
+  widget.classList.toggle("is-incorrect",ready&&!correct);
+  updateQcmChoiceStates(widget,ready);
+  var feedback=widget.querySelector(".qcm-feedback");
+  if(feedback)feedback.textContent=!selectedCount?"Choose an answer":partial?selectedCount+"/"+required+" selected":correct?"Correct":"Review your answer";
+  var explanation=widget.querySelector(".qcm-explanation");
+  if(explanation)explanation.hidden=!ready;
+}
+document.addEventListener("change",function(event){
+  if(!event.target.matches(".qcm-widget input[data-correct]"))return;
+  updateQcmWidget(event.target.closest(".qcm-widget"),false);
+});
+document.addEventListener("click",function(event){
+  var button=event.target.closest(".qcm-check");
+  if(!button)return;
+  updateQcmWidget(button.closest(".qcm-widget"),true);
+});
+<\/script>`;
+}
+
 function renderPreviewErrorHtml(error) {
   const message = error?.message || String(error || "Unknown render error");
   return `<div class="preview-render-error" role="alert">
@@ -247,6 +474,87 @@ function htmlToMarkdown(html) {
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+function notebookSourceToText(source) {
+  if (Array.isArray(source)) return source.join("");
+  return String(source || "");
+}
+
+function markdownFenceBlock(code, lang = "") {
+  const text = String(code || "").replace(/\s+$/g, "");
+  const matches = text.match(/`{3,}/g) || [];
+  const ticks = Math.max(3, ...matches.map((match) => match.length)) + 1;
+  const fence = "`".repeat(ticks);
+  return `${fence}${lang}\n${text}\n${fence}`;
+}
+
+function renderNotebookOutput(output = {}, index = 0) {
+  const parts = [];
+  const label = output.execution_count != null
+    ? `Out [${output.execution_count}]`
+    : output.name
+      ? String(output.name)
+      : `Output ${index + 1}`;
+  const data = output.data || {};
+  const text =
+    notebookSourceToText(output.text) ||
+    notebookSourceToText(data["text/plain"]) ||
+    notebookSourceToText(output.traceback);
+  const html = notebookSourceToText(data["text/html"]);
+  const image = notebookSourceToText(data["image/png"] || data["image/jpeg"]);
+  const imageMime = data["image/jpeg"] ? "image/jpeg" : "image/png";
+
+  if (html) {
+    parts.push(`<div class="nb-output nb-output-html"><div class="nb-cell-label">${escHtml(label)}</div>${html}</div>`);
+  }
+  if (image) {
+    parts.push(`<div class="nb-output nb-output-image"><div class="nb-cell-label">${escHtml(label)}</div><img src="data:${imageMime};base64,${image.replace(/\s+/g, "")}" alt="${escHtml(label)}"></div>`);
+  }
+  if (text) {
+    const className = output.output_type === "error" ? "nb-output nb-output-error" : "nb-output";
+    parts.push(`<div class="${className}"><div class="nb-cell-label">${escHtml(label)}</div><pre>${escHtml(text)}</pre></div>`);
+  }
+  return parts.join("\n\n");
+}
+
+function notebookToMarkdown(notebook, fileName = "notebook.ipynb") {
+  if (!notebook || !Array.isArray(notebook.cells)) {
+    throw new Error("Invalid Jupyter notebook: missing cells array.");
+  }
+
+  const title = fileName.replace(/\.ipynb$/i, "").replace(/[-_]+/g, " ").trim() || "Notebook";
+  const language =
+    notebook.metadata?.language_info?.name ||
+    notebook.metadata?.kernelspec?.language ||
+    "python";
+  const chunks = [
+    `# ${title}`,
+    `<div class="nb-document-meta">Imported from ${escHtml(fileName)} · ${notebook.cells.length} cells</div>`,
+  ];
+
+  notebook.cells.forEach((cell, index) => {
+    const source = notebookSourceToText(cell.source).trimEnd();
+    if (cell.cell_type === "markdown") {
+      if (source.trim()) chunks.push(source);
+      return;
+    }
+    if (cell.cell_type !== "code") return;
+
+    const inputLabel = cell.execution_count != null ? `In [${cell.execution_count}]` : `In [${index + 1}]`;
+    const code = [
+      `<div class="nb-cell-label">${escHtml(inputLabel)}</div>`,
+      markdownFenceBlock(source, language),
+    ].join("\n\n");
+    chunks.push(code);
+
+    const outputs = Array.isArray(cell.outputs)
+      ? cell.outputs.map((output, outputIndex) => renderNotebookOutput(output, outputIndex)).filter(Boolean)
+      : [];
+    if (outputs.length) chunks.push(outputs.join("\n\n"));
+  });
+
+  return chunks.filter(Boolean).join("\n\n");
 }
 
 // Global copy helper referenced in rendered HTML
@@ -728,6 +1036,7 @@ async function postProcessPreviewContainer(
   if (!container) return;
   await renderMermaid(container);
   resolvePreviewImages(container, imageMap);
+  enhanceQcmWidgets(container);
   enhancePreviewBlocks(
     container,
     sizes,
@@ -968,6 +1277,29 @@ createApp({
     const showFR = ref(false);
     const showSettings = ref(false);
     const showHistory = ref(false);
+    const showPosterBuilder = ref(false);
+    const posterPreviewRef = ref(null);
+    const posterTitle = ref("");
+    const posterSubtitle = ref("");
+    const posterSize = ref("a0");
+    const posterOrientation = ref("landscape");
+    const posterColumns = ref(3);
+    const posterSlotCount = ref(6);
+    const posterLayout = ref([]);
+    const posterDragSectionId = ref("");
+    const posterTheme = ref("academic-blue");
+    const posterSizeOptions = [
+      { id: "a0", label: "A0", width: 841, height: 1189 },
+      { id: "a1", label: "A1", width: 594, height: 841 },
+      { id: "arch-d", label: "36 x 24 in", width: 914, height: 610 },
+      { id: "arch-e", label: "48 x 36 in", width: 1219, height: 914 },
+    ];
+    const posterThemeOptions = [
+      { id: "academic-blue", label: "Academic Blue" },
+      { id: "nature-journal", label: "Nature Journal" },
+      { id: "minimal-white", label: "Minimal White" },
+      { id: "dark-presentation", label: "Dark Presentation" },
+    ];
     const appDialog = ref({
       open: false,
       title: "",
@@ -1039,6 +1371,10 @@ createApp({
     const cColorHead = ref("");
     const cColorLink = ref("");
     const cColorBg = ref("");
+    const previewTextWrap = ref(true);
+    const previewCodeWrap = ref(false);
+    const previewCodeFontScale = ref(1);
+    const previewLatexFontScale = ref(1);
     const previewTableLayout = ref("full");
     const previewTableStriped = ref(true);
     const previewTableCompact = ref(false);
@@ -1333,6 +1669,8 @@ createApp({
         if (!window.marked) return "<p>Loading...</p>";
         let src = markdown || "";
         const mathBlocks = [];
+        const qcm = extractQcmBlocks(src);
+        src = qcm.source;
 
         src = src.replace(/\$\$([\s\S]+?)\$\$/g, (match, expr) => {
           const id = `KATEXDISPLAYPLACEHOLDER${mathBlocks.length}XYZ`;
@@ -1367,6 +1705,11 @@ createApp({
             }
           });
         }
+
+        qcm.widgets.forEach((widget) => {
+          html = html.replace(`<p>${widget.placeholder}</p>`, widget.html);
+          html = html.replace(widget.placeholder, widget.html);
+        });
 
         return html;
       } catch (error) {
@@ -1455,6 +1798,113 @@ createApp({
       return h;
     });
 
+    function getPosterSourceTitle() {
+      const h1 = (currentContent.value || "")
+        .split("\n")
+        .find((line) => /^#\s+/.test(line));
+      if (h1) return h1.replace(/^#\s+/, "").trim();
+      return activeFile.value?.name?.replace(/\.[^.]+$/, "") || "Research Poster";
+    }
+
+    const posterPageSize = computed(() => {
+      const size =
+        posterSizeOptions.find((item) => item.id === posterSize.value) ||
+        posterSizeOptions[0];
+      const wide = posterOrientation.value === "landscape";
+      const width = wide ? Math.max(size.width, size.height) : Math.min(size.width, size.height);
+      const height = wide ? Math.min(size.width, size.height) : Math.max(size.width, size.height);
+      return { ...size, width, height };
+    });
+
+    const posterCanvasStyle = computed(() => ({
+      "--poster-columns": posterColumns.value,
+      "--poster-page-width": `${posterPageSize.value.width}mm`,
+      "--poster-page-height": `${posterPageSize.value.height}mm`,
+      aspectRatio: `${posterPageSize.value.width} / ${posterPageSize.value.height}`,
+    }));
+
+    const posterSections = computed(() => {
+      const source = currentContent.value || "";
+      const lines = source.split("\n");
+      const sections = [];
+      const intro = [];
+      let current = null;
+
+      lines.forEach((line) => {
+        const h2 = line.match(/^##\s+(.+)/);
+        if (h2) {
+          if (current) sections.push(current);
+          current = { title: h2[1].trim(), body: [] };
+          return;
+        }
+        if (current) current.body.push(line);
+        else if (!/^#\s+/.test(line)) intro.push(line);
+      });
+
+      if (current) sections.push(current);
+
+      const panels = [];
+      const introText = intro.join("\n").trim();
+      if (introText) {
+        const id = `poster-intro-${stableHash(introText)}`;
+        panels.push({
+          id,
+          title: "Overview",
+          body: introText,
+          html: renderMarkdownToHtml(introText),
+        });
+      }
+
+      sections.forEach((section, index) => {
+        const body = section.body.join("\n").trim();
+        const id = `poster-${index}-${stableHash(section.title + body)}`;
+        panels.push({
+          id,
+          title: section.title,
+          body: body || section.title,
+          html: renderMarkdownToHtml(body || section.title),
+        });
+      });
+
+      if (!panels.length) {
+        const id = `poster-full-${stableHash(source)}`;
+        panels.push({
+          id,
+          title: getPosterSourceTitle(),
+          body: source || "Start writing to generate a poster.",
+          html: renderMarkdownToHtml(source || "Start writing to generate a poster."),
+        });
+      }
+
+      return panels;
+    });
+
+    const posterAssignedIds = computed(() =>
+      posterLayout.value.filter((id) => posterSections.value.some((section) => section.id === id)),
+    );
+
+    const posterUnassignedSections = computed(() => {
+      const assigned = new Set(posterAssignedIds.value);
+      return posterSections.value.filter((section) => !assigned.has(section.id));
+    });
+
+    const posterPanels = computed(() => {
+      const sectionMap = new Map(posterSections.value.map((section) => [section.id, section]));
+      const assigned = posterLayout.value
+        .map((id, index) => {
+          const section = sectionMap.get(id);
+          return section ? { ...section, slot: index + 1 } : null;
+        })
+        .filter(Boolean);
+      return assigned.length ? assigned : posterSections.value.map((section, index) => ({ ...section, slot: index + 1 }));
+    });
+
+    const qcmQuestions = computed(() =>
+      extractQcmBlocks(currentContent.value || "", false).widgets.map((widget) => widget.question),
+    );
+
+    const hasQcmQuestions = computed(() => qcmQuestions.value.length > 0);
+
     const fontChoices = [
       { name: "System", val: "-apple-system,BlinkMacSystemFont,sans-serif" },
       { name: "DM Sans", val: '"DM Sans",sans-serif' },
@@ -1499,6 +1949,12 @@ createApp({
       if (cH2.value) s["--h2-size"] = cH2.value + "em";
       if (cColorHead.value) s["--color-head"] = cColorHead.value;
       if (cColorLink.value) s["--color-link"] = cColorLink.value;
+      s["--text-wrap"] = previewTextWrap.value ? "break-word" : "normal";
+      s["--text-word-break"] = previewTextWrap.value ? "break-word" : "normal";
+      s["--code-font-size"] = `${previewCodeFontScale.value}em`;
+      s["--code-white-space"] = previewCodeWrap.value ? "pre-wrap" : "pre";
+      s["--code-overflow-wrap"] = previewCodeWrap.value ? "anywhere" : "normal";
+      s["--latex-font-size"] = `${previewLatexFontScale.value}em`;
       s["--table-width"] =
         previewTableLayout.value === "full" ? "100%" : "fit-content";
       s["--table-display"] =
@@ -1656,6 +2112,10 @@ createApp({
         cColorHead: "",
         cColorLink: "",
         cColorBg: "",
+        previewTextWrap: true,
+        previewCodeWrap: false,
+        previewCodeFontScale: 1,
+        previewLatexFontScale: 1,
         previewTableLayout: "full",
         previewTableStriped: true,
         previewTableCompact: false,
@@ -1709,6 +2169,10 @@ createApp({
         cColorHead: cColorHead.value,
         cColorLink: cColorLink.value,
         cColorBg: cColorBg.value,
+        previewTextWrap: previewTextWrap.value,
+        previewCodeWrap: previewCodeWrap.value,
+        previewCodeFontScale: previewCodeFontScale.value,
+        previewLatexFontScale: previewLatexFontScale.value,
         previewTableLayout: previewTableLayout.value,
         previewTableStriped: previewTableStriped.value,
         previewTableCompact: previewTableCompact.value,
@@ -1743,6 +2207,10 @@ createApp({
       cColorHead.value = s.cColorHead;
       cColorLink.value = s.cColorLink;
       cColorBg.value = s.cColorBg;
+      previewTextWrap.value = s.previewTextWrap !== false;
+      previewCodeWrap.value = Boolean(s.previewCodeWrap);
+      previewCodeFontScale.value = s.previewCodeFontScale || 1;
+      previewLatexFontScale.value = s.previewLatexFontScale || 1;
       previewTableLayout.value = s.previewTableLayout;
       previewTableStriped.value = s.previewTableStriped;
       previewTableCompact.value = s.previewTableCompact;
@@ -2017,10 +2485,23 @@ createApp({
       const file = e.target.files[0];
       if (!file) return;
       const text = await file.text();
+      const isNotebook = /\.ipynb$/i.test(file.name);
+      let content = text;
+      let name = file.name;
+      if (isNotebook) {
+        try {
+          content = notebookToMarkdown(JSON.parse(text), file.name);
+          name = file.name.replace(/\.ipynb$/i, ".md");
+        } catch (error) {
+          notify(error?.message || "Could not import notebook", "warn");
+          e.target.value = "";
+          return;
+        }
+      }
       const f = {
         id: genId(),
-        name: file.name,
-        content: text,
+        name,
+        content,
         style: createDefaultFileStyle(),
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -2029,6 +2510,7 @@ createApp({
       files.value.unshift(f);
       persistFileOrder();
       await switchFile(f.id);
+      notify(isNotebook ? "Notebook imported" : "File uploaded", "success", 1400);
       e.target.value = "";
     }
 
@@ -3508,6 +3990,147 @@ createApp({
       showExport.value = true;
     }
 
+    let posterRenderTimer = null;
+    function clampPosterSlotCount(value) {
+      return Math.min(12, Math.max(1, Number(value) || 1));
+    }
+
+    function syncPosterLayout(fillEmpty = false) {
+      const validIds = new Set(posterSections.value.map((section) => section.id));
+      const next = posterLayout.value
+        .filter((id) => !id || validIds.has(id))
+        .slice(0, posterSlotCount.value);
+
+      while (next.length < posterSlotCount.value) next.push("");
+
+      if (fillEmpty) {
+        const used = new Set(next.filter(Boolean));
+        let cursor = 0;
+        for (let index = 0; index < next.length; index++) {
+          if (next[index]) continue;
+          while (
+            cursor < posterSections.value.length &&
+            used.has(posterSections.value[cursor].id)
+          ) {
+            cursor++;
+          }
+          const section = posterSections.value[cursor];
+          if (!section) break;
+          next[index] = section.id;
+          used.add(section.id);
+        }
+      }
+
+      posterLayout.value = next;
+    }
+
+    function resetPosterLayout() {
+      posterSlotCount.value = clampPosterSlotCount(
+        Math.max(posterColumns.value * 2, posterSections.value.length || 1),
+      );
+      posterLayout.value = [];
+      syncPosterLayout(true);
+      schedulePosterRender();
+    }
+
+    function setPosterSlot(index, sectionId) {
+      const next = posterLayout.value.slice();
+      const cleanId = sectionId || "";
+      if (cleanId) {
+        const existing = next.indexOf(cleanId);
+        if (existing >= 0 && existing !== index) next[existing] = "";
+      }
+      next[index] = cleanId;
+      posterLayout.value = next;
+      syncPosterLayout(false);
+      schedulePosterRender();
+    }
+
+    function clearPosterSlot(index) {
+      setPosterSlot(index, "");
+    }
+
+    function movePosterSlot(index, direction) {
+      const target = index + direction;
+      if (target < 0 || target >= posterLayout.value.length) return;
+      const next = posterLayout.value.slice();
+      [next[index], next[target]] = [next[target], next[index]];
+      posterLayout.value = next;
+      schedulePosterRender();
+    }
+
+    function addPosterSlot() {
+      posterSlotCount.value = clampPosterSlotCount(posterSlotCount.value + 1);
+      syncPosterLayout(false);
+    }
+
+    function removePosterSlot(index) {
+      if (posterSlotCount.value <= 1) return;
+      const next = posterLayout.value.slice();
+      next.splice(index, 1);
+      posterSlotCount.value = clampPosterSlotCount(posterSlotCount.value - 1);
+      posterLayout.value = next;
+      syncPosterLayout(false);
+      schedulePosterRender();
+    }
+
+    function beginPosterSectionDrag(sectionId) {
+      posterDragSectionId.value = sectionId;
+    }
+
+    function dropPosterSection(index) {
+      if (!posterDragSectionId.value) return;
+      setPosterSlot(index, posterDragSectionId.value);
+      posterDragSectionId.value = "";
+    }
+
+    function endPosterSectionDrag() {
+      posterDragSectionId.value = "";
+    }
+
+    function schedulePosterRender() {
+      clearTimeout(posterRenderTimer);
+      posterRenderTimer = setTimeout(() => {
+        nextTick(async () => {
+          const target = posterPreviewRef.value;
+          if (!target) return;
+          await renderMermaid(target);
+          resolvePreviewImages(target, imagePathMap.value);
+          enhanceQcmWidgets(target);
+        });
+      }, 120);
+    }
+
+    function openPosterBuilder() {
+      posterTitle.value = getPosterSourceTitle();
+      posterSubtitle.value = exportAuthor.value || "Markdown Studio Poster";
+      resetPosterLayout();
+      showExport.value = false;
+      showPosterBuilder.value = true;
+      schedulePosterRender();
+    }
+
+    function closePosterBuilder() {
+      showPosterBuilder.value = false;
+    }
+
+    function printPoster() {
+      let pageStyle = document.getElementById("poster-print-page-style");
+      if (!pageStyle) {
+        pageStyle = document.createElement("style");
+        pageStyle.id = "poster-print-page-style";
+        document.head.appendChild(pageStyle);
+      }
+      pageStyle.textContent = `@media print { @page poster { size: ${posterPageSize.value.width}mm ${posterPageSize.value.height}mm; margin: 0; } }`;
+      document.body.classList.add("poster-printing");
+      const clearPrintMode = () => document.body.classList.remove("poster-printing");
+      window.addEventListener("afterprint", clearPrintMode, { once: true });
+      nextTick(() => {
+        window.print();
+        setTimeout(clearPrintMode, 800);
+      });
+    }
+
     function exportMarkdown() {
       const blob = new Blob(
         [editorInstance?.getValue() || currentContent.value],
@@ -3575,12 +4198,18 @@ createApp({
     }
 
     function embedExportImages(html) {
-      const doc = new DOMParser().parseFromString(html || "", "text/html");
-      doc.querySelectorAll("img[src]").forEach((img) => {
-        const embedded = getEmbeddedImageSource(img.getAttribute("src"));
-        if (embedded) img.setAttribute("src", embedded);
+      return String(html || "").replace(/<img\b[^>]*>/gi, (tag) => {
+        return tag.replace(/\bsrc\s*=\s*(["'])(.*?)\1/i, (match, quote, src) => {
+          const embedded = getEmbeddedImageSource(src);
+          if (!embedded) return match;
+          const escaped = String(embedded)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(quote === '"' ? /"/g : /'/g, quote === '"' ? "&quot;" : "&#39;");
+          return `src=${quote}${escaped}${quote}`;
+        });
       });
-      return doc.body.innerHTML;
     }
 
     function cssPropName(prop) {
@@ -3609,6 +4238,10 @@ ${pageStyle}
     color: ${cColorText.value || "inherit"};
   }
   .md-export p { margin: 0 0 var(--para-gap, 0.8em); }
+  .md-export p, .md-export li, .md-export blockquote, .md-export td, .md-export th {
+    overflow-wrap: var(--text-wrap, break-word);
+    word-break: var(--text-word-break, break-word);
+  }
   .md-export h1, .md-export h2, .md-export h3, .md-export h4 {
     color: var(--color-head, inherit);
     font-family: var(--head-font, inherit);
@@ -3623,7 +4256,20 @@ ${pageStyle}
     border-radius: 6px;
     overflow-x: auto;
   }
-  .md-export code { font-family: "JetBrains Mono", "DM Mono", monospace; }
+  .md-export code {
+    font-family: "JetBrains Mono", "DM Mono", monospace;
+    font-size: calc(0.86em * var(--code-font-size, 1));
+    overflow-wrap: var(--code-overflow-wrap, anywhere);
+  }
+  .md-export pre code {
+    font-size: calc(0.84em * var(--code-font-size, 1));
+    white-space: var(--code-white-space, pre);
+    overflow-wrap: var(--code-overflow-wrap, normal);
+  }
+  .md-export .katex-block,
+  .md-export .katex-inline {
+    font-size: var(--latex-font-size, 1em);
+  }
   .md-export table {
     border-collapse: collapse;
     width: var(--table-width, 100%);
@@ -3668,6 +4314,7 @@ ${buildMetadataScript(metadata)}
 ${body}
 </main>
 <script>mermaid.initialize({startOnLoad:true});<\/script>
+${getQcmExportScript()}
 </body>
 </html>`;
     }
@@ -3709,6 +4356,110 @@ ${body}
         blob,
         (activeFile.value?.name?.replace(".md", "") || "document") + ".json",
       );
+    }
+
+    function exportQcmJson() {
+      const data = {
+        source: activeFile.value?.name || "document.md",
+        exportedAt: new Date().toISOString(),
+        questions: qcmQuestions.value.map((question, index) => ({
+          id: question.id,
+          number: index + 1,
+          question: question.question,
+          choices: question.choices.map((choice) => ({
+            text: choice.text,
+            correct: Boolean(choice.correct),
+          })),
+          explanation: question.explanation || "",
+        })),
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], {
+        type: "application/json",
+      });
+      downloadBlob(
+        blob,
+        (activeFile.value?.name?.replace(/\.(md|markdown|txt)$/i, "") || "qcm") +
+          "-questions.json",
+      );
+      notify("QCM JSON exported", "success", 1400);
+    }
+
+    function buildQcmAnswerSheetHtml() {
+      const title = escHtml(exportTitle.value || activeFile.value?.name || "QCM");
+      const questions = qcmQuestions.value;
+      const body = questions
+        .map((question, index) => {
+          const choices = question.choices
+            .map((choice, choiceIndex) => `<li>
+              <span class="qcm-answer-letter">${String.fromCharCode(65 + choiceIndex)}.</span>
+              <span>${renderQcmRichText(choice.text)}</span>
+            </li>`)
+            .join("");
+          return `<section class="qcm-sheet-question">
+            <h2>${index + 1}. ${renderQcmRichText(question.question)}</h2>
+            <ol type="A">${choices}</ol>
+          </section>`;
+        })
+        .join("");
+      const answerKey = questions
+        .map((question, index) => {
+          const answers = question.choices
+            .map((choice, choiceIndex) => (choice.correct ? String.fromCharCode(65 + choiceIndex) : ""))
+            .filter(Boolean)
+            .join(", ");
+          const explanation = question.explanation
+            ? `<div class="qcm-key-explanation">${renderQcmRichText(question.explanation, true)}</div>`
+            : "";
+          return `<li><strong>${index + 1}.</strong> ${escHtml(answers || "-")}${explanation}</li>`;
+        })
+        .join("");
+      return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>${title} Answer Sheet</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<style>
+body { margin: 0; background: #f3f4f6; color: #111827; font: 14px/1.55 system-ui, sans-serif; }
+.qcm-sheet { max-width: 820px; margin: 32px auto; padding: 38px 44px; background: white; box-shadow: 0 18px 48px rgba(15,23,42,.12); }
+.qcm-sheet h1 { margin: 0 0 22px; font-size: 28px; line-height: 1.1; }
+.qcm-sheet-question { break-inside: avoid; margin: 0 0 22px; }
+.qcm-sheet-question h2 { margin: 0 0 9px; font-size: 16px; line-height: 1.35; }
+.qcm-sheet-question ol { margin: 0; padding-left: 24px; }
+.qcm-sheet-question li { margin: 5px 0; padding-left: 4px; }
+.qcm-answer-letter { font-weight: 700; margin-right: 4px; }
+.qcm-answer-key { break-before: page; }
+.qcm-answer-key li { margin: 9px 0; }
+.qcm-key-explanation { margin: 4px 0 0 1.4em; color: #4b5563; }
+.qcm-katex-display { display: block; margin: .35em 0; overflow-x: auto; }
+@media print {
+  body { background: white; }
+  .qcm-sheet { margin: 0; max-width: none; min-height: 100vh; box-shadow: none; }
+  @page { size: A4; margin: 18mm; }
+}
+</style>
+</head>
+<body>
+<main class="qcm-sheet">
+<h1>${title}</h1>
+${body}
+<section class="qcm-answer-key">
+<h1>Answer Key</h1>
+<ol>${answerKey}</ol>
+</section>
+</main>
+</body>
+</html>`;
+    }
+
+    function exportQcmAnswerSheet() {
+      const blob = new Blob([buildQcmAnswerSheetHtml()], { type: "text/html" });
+      downloadBlob(
+        blob,
+        (activeFile.value?.name?.replace(/\.(md|markdown|txt)$/i, "") || "qcm") +
+          "-answer-sheet.html",
+      );
+      notify("QCM answer sheet exported", "success", 1400);
     }
 
     function safeZipPathName(name, fallback = "file") {
@@ -3997,6 +4748,10 @@ ${body}
         cColorHead,
         cColorLink,
         cColorBg,
+        previewTextWrap,
+        previewCodeWrap,
+        previewCodeFontScale,
+        previewLatexFontScale,
         previewTableLayout,
         previewTableStriped,
         previewTableCompact,
@@ -4019,6 +4774,30 @@ ${body}
       if (!showMermaid.value) return;
       clearTimeout(mermaidPreviewTimer);
       mermaidPreviewTimer = setTimeout(() => previewMermaid(), 180);
+    });
+
+    watch(
+      [posterPanels, posterTheme, posterColumns, posterSize, posterOrientation],
+      () => {
+        if (showPosterBuilder.value) schedulePosterRender();
+      },
+    );
+
+    watch(posterSections, () => {
+      if (!showPosterBuilder.value) return;
+      syncPosterLayout(false);
+      schedulePosterRender();
+    });
+
+    watch(posterSlotCount, () => {
+      if (!showPosterBuilder.value) return;
+      posterSlotCount.value = clampPosterSlotCount(posterSlotCount.value);
+      syncPosterLayout(false);
+      schedulePosterRender();
+    });
+
+    watch(showPosterBuilder, (visible) => {
+      if (visible) schedulePosterRender();
     });
 
     // ── onMounted ────────────────────────────────────────────────────────────
@@ -4133,6 +4912,9 @@ ${body}
       previewScrollEl?.removeEventListener("scroll", onPreviewScroll);
       clearInterval(snapshotTimer);
       clearTimeout(syncIndicatorTimer);
+      clearTimeout(renderTimer);
+      clearTimeout(mermaidPreviewTimer);
+      clearTimeout(posterRenderTimer);
       settingDebounceTimers.forEach((timer) => clearTimeout(timer));
       settingDebounceTimers.clear();
       editorInstance?.destroy();
@@ -4180,6 +4962,19 @@ ${body}
       showFR,
       showSettings,
       showHistory,
+      showPosterBuilder,
+      posterPreviewRef,
+      posterTitle,
+      posterSubtitle,
+      posterSize,
+      posterOrientation,
+      posterColumns,
+      posterSlotCount,
+      posterLayout,
+      posterDragSectionId,
+      posterTheme,
+      posterSizeOptions,
+      posterThemeOptions,
       appDialog,
       closeAppDialog,
       syncScrollEnabled,
@@ -4222,6 +5017,10 @@ ${body}
       cColorHead,
       cColorLink,
       cColorBg,
+      previewTextWrap,
+      previewCodeWrap,
+      previewCodeFontScale,
+      previewLatexFontScale,
       previewTableLayout,
       previewTableStriped,
       previewTableCompact,
@@ -4326,6 +5125,12 @@ ${body}
       lineCount,
       readTime,
       headings,
+      posterSections,
+      posterUnassignedSections,
+      posterPanels,
+      posterCanvasStyle,
+      qcmQuestions,
+      hasQcmQuestions,
       fontChoices,
       renderThemes,
       currentThemeName,
@@ -4436,6 +5241,18 @@ ${body}
       loadUserTemplate,
       deleteUserTpl,
       openExport,
+      openPosterBuilder,
+      closePosterBuilder,
+      printPoster,
+      resetPosterLayout,
+      setPosterSlot,
+      clearPosterSlot,
+      movePosterSlot,
+      addPosterSlot,
+      removePosterSlot,
+      beginPosterSectionDrag,
+      dropPosterSection,
+      endPosterSectionDrag,
       exportMarkdown,
       exportHtml,
       exportPdfFn,
@@ -4455,6 +5272,8 @@ ${body}
       copyText,
       exportTxt,
       exportJSON,
+      exportQcmJson,
+      exportQcmAnswerSheet,
       startRenameById,
       duplicateFile,
       exportSingle,

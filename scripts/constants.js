@@ -152,6 +152,24 @@ const TEMPLATES = [
       "# Meeting Notes\n\n**Date:** {{date}} · **Facilitator:** Name\n\n## Attendees\n\n- Person One\n- Person Two\n\n## Discussion\n\n### Topic 1\n\nSummary. **Decision:** What was decided.\n\n## Action Items\n\n| Task | Owner | Due |\n|------|-------|-----|\n| Task | Person | Date |\n",
   },
   {
+    id: "qcm-practice",
+    name: "QCM Practice",
+    icon: "ti-list-check",
+    desc: "Interactive exercises",
+    theme: "default",
+    content:
+      "# QCM Practice Sheet\n\n**Topic:** Course unit · **Date:** {{date}}\n\n## Instructions\n\nSelect the correct answer or answers. Multi-answer questions check automatically once the required number of options is selected.\n\n?? Which data structure uses FIFO ordering?\n\n- [ ] Stack\n- [x] Queue\n- [ ] Tree\n- [ ] Graph\n\n?! FIFO means first in, first out. A queue removes items in the same order they were inserted.\n\n---\n\n?? Select the Markdown features supported by Markdown Studio.\n\n- [x] Mermaid diagrams\n- [x] LaTeX math\n- [ ] Native spreadsheet formulas\n- [x] Tables\n\n?! Markdown Studio supports diagrams, math, and tables directly in the preview.\n\n---\n\n?? What does $O(n \\log n)$ usually describe?\n\n- [ ] Constant-time lookup\n- [x] A common comparison-sort complexity\n- [ ] Exponential search\n- [ ] Linear scan only\n\n?! Algorithms like merge sort and heap sort run in $O(n \\log n)$ time.\n",
+  },
+  {
+    id: "notebook-report",
+    name: "Notebook Report",
+    icon: "ti-brand-python",
+    desc: "Styled notebook notes",
+    theme: "technical",
+    content:
+      "# Notebook Analysis Report\n\n<div class=\"nb-document-meta\">Notebook-style document · imported cells can be restyled here</div>\n\n## Objective\n\nState the question, dataset, or experiment being analyzed.\n\n<div class=\"nb-cell-label\">In [1]</div>\n\n```python\nimport pandas as pd\nimport matplotlib.pyplot as plt\n\n# Load and inspect the dataset\ndf = pd.read_csv(\"data.csv\")\ndf.head()\n```\n\n<div class=\"nb-output\"><div class=\"nb-cell-label\">Out [1]</div><pre>5 rows x 8 columns</pre></div>\n\n## Findings\n\n- Key observation one\n- Key observation two\n- Limitation or next step\n\n<div class=\"nb-cell-label\">In [2]</div>\n\n```python\nsummary = df.describe()\nsummary\n```\n\n<div class=\"nb-output\"><div class=\"nb-cell-label\">Out [2]</div><pre>summary statistics table</pre></div>\n\n## Conclusion\n\nSummarize what the notebook demonstrates and what should happen next.\n",
+  },
+  {
     id: "minimal",
     name: "Minimal Note",
     icon: "ti-note",
