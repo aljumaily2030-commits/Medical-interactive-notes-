@@ -17,6 +17,8 @@ The app is intentionally browser-first. Files, settings, images, templates, snap
 - Per-file preview styling for typography, width, padding, colors, block sizing, alignment, borders, backgrounds, table density, code wrapping, LaTeX sizing, and text wrapping.
 - Multi-file workspace with search, drag reorder, autosave status, snapshots, backup/restore, quota warnings, and ZIP export.
 - Built-in templates for research papers, CVs, technical docs, lab reports, algorithm revision sheets, QCM exams, notebook reports, research posters, business cases, and more.
+- Auto-rendered template variables such as `{{date}}`, `{{title}}`, `{{author}}`, `{{year}}`, `{{time}}`, and `{{filename}}`.
+- Copy/paste AI generation skill in `docs/AI_MARKDOWN_STUDIO_SKILL.md` plus an in-app AI Skill Prompt template.
 
 ## Quick Start
 
@@ -46,6 +48,12 @@ No backend service is required.
 ### Technical Notes
 
 Write Markdown normally, insert code blocks, equations, Mermaid diagrams, and images, then export to HTML, PDF print, Markdown, JSON, Word-compatible `.doc`, or ZIP.
+
+Template placeholders render automatically in preview and export. Use `{{date}}` for today's date, `{{title}}` for the document title, `{{author}}` for export author, and `{{filename}}` for the active file name.
+
+### AI-Assisted Generation
+
+Use `docs/AI_MARKDOWN_STUDIO_SKILL.md` or the built-in **AI Skill Prompt** template when asking ChatGPT, Codex, Claude, or another assistant to generate Markdown Studio-ready files. The prompt teaches the AI to use Markdown Studio features such as Mermaid, KaTeX, QCM syntax, poster sections, tables, template variables, and export-friendly structure.
 
 ### QCM Exercises
 
@@ -111,6 +119,8 @@ Persistence is handled through IndexedDB in `scripts/storage.js`. Autosave write
 │   └── vendor/
 ├── tests/
 │   └── static-regression.mjs
+├── docs/
+│   └── AI_MARKDOWN_STUDIO_SKILL.md
 ├── reviews/
 ├── package.json
 └── README.md

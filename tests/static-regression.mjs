@@ -3,7 +3,7 @@ import { strict as assert } from "node:assert";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-const [script, editor, index, manifest, cmEntry, pkg, mermaidRenderer, storage, style, constants] = await Promise.all([
+const [script, editor, index, manifest, cmEntry, pkg, mermaidRenderer, storage, style, constants, aiSkill] = await Promise.all([
   read("scripts/script.js"),
   read("scripts/editor.js"),
   read("index.html"),
@@ -14,6 +14,7 @@ const [script, editor, index, manifest, cmEntry, pkg, mermaidRenderer, storage, 
   read("scripts/storage.js"),
   read("assets/style.css"),
   read("scripts/constants.js"),
+  read("docs/AI_MARKDOWN_STUDIO_SKILL.md"),
 ]);
 
 assert.match(script, /renderer\.code = function \(tokenOrCode/, "Marked code renderer supports token and positional APIs");
@@ -30,6 +31,16 @@ assert.match(script, /normalizeFileForStorage/, "Files are normalized before per
 assert.match(script, /FILE_RECORD_VERSION/, "File records carry an app-level schema version");
 assert.match(script, /function htmlToMarkdown/, "Paste-as-Markdown converter exists");
 assert.match(script, /function onEditorPaste/, "Editor paste handler exists");
+assert.match(script, /function renderTemplateVariables/, "Template variables render automatically");
+assert.match(script, /source\.replace\(/, "Template variable parser replaces source tokens");
+assert.match(script, /isodate/, "Template variable parser supports ISO date values");
+assert.match(script, /buildTemplateVariableMap/, "Template variable values are centralized");
+assert.match(script, /themeMode = ref\("system"\)/, "Theme mode defaults to system");
+assert.match(script, /prefers-color-scheme: dark/, "System theme follows browser color preference");
+assert.match(script, /function setThemeMode/, "Theme mode setter exists");
+assert.match(script, /hasSeenGuide/, "First-run guide display is tracked");
+assert.match(script, /viewMode.*setSetting\("viewMode"/s, "View mode layout is persisted");
+assert.match(script, /editorWidth.*setSettingDebounced\("editorWidth"/s, "Split width layout is persisted");
 assert.match(script, /function notebookToMarkdown/, "Jupyter notebook importer exists");
 assert.match(script, /function renderNotebookOutput/, "Jupyter notebook outputs are converted");
 assert.match(script, /previewCodeFontScale/, "Preview code font scaling is persisted");
@@ -96,6 +107,11 @@ assert.match(index, /showMermaidViewer/, "Mermaid fullscreen viewer modal is exp
 assert.match(index, /mermaidViewerZoomLabel/, "Mermaid fullscreen viewer shows zoom state");
 assert.match(index, /downloadMermaidPng/, "Mermaid fullscreen viewer exposes PNG download");
 assert.match(index, /exportAllZip/, "Workspace ZIP export is exposed in the UI");
+assert.match(index, /showTutorial/, "User guide modal is exposed in the UI");
+assert.match(index, /tutorialSections/, "User guide content is rendered from structured data");
+assert.match(index, /Markdown Studio Guide/, "User guide has a visible title");
+assert.match(index, /v-model="themeMode"/, "Theme mode selector is exposed in the UI");
+assert.match(index, /previewCodeWrap=!previewCodeWrap/, "Preview toolbar exposes code-wrap toggle");
 assert.match(index, /hasQcmQuestions/, "QCM export cards are shown only when useful");
 assert.match(index, /exportQcmAnswerSheet/, "QCM answer sheet export is exposed in the UI");
 assert.match(index, /showPosterBuilder/, "Research poster builder modal is exposed in the UI");
@@ -125,6 +141,10 @@ assert.match(style, /\.qcm-choice\.is-selected/, "QCM selected choices are style
 assert.match(style, /\.qcm-choice input\[data-correct\]/, "QCM native radio/checkbox controls are custom styled");
 assert.match(style, /appearance:\s*none/, "QCM controls override native browser appearance");
 assert.match(style, /\.poster-builder-modal/, "Research poster builder modal is styled");
+assert.match(style, /\.tutorial-modal/, "User guide modal is styled");
+assert.match(style, /\.tutorial-grid/, "User guide section grid is styled");
+assert.match(style, /body\.document-printing \.modal-overlay/, "Document PDF print hides modals");
+assert.match(style, /\.tb-mode-sel/, "Theme mode selector is styled");
 assert.match(style, /\.poster-theme-academic-blue/, "Research poster themes are styled");
 assert.match(style, /poster-printing/, "Research poster print mode is styled");
 assert.match(constants, /qcm-practice/, "QCM practice template exists");
@@ -133,6 +153,12 @@ assert.match(constants, /notebook-report/, "Notebook report template exists");
 assert.match(constants, /research-poster/, "Research poster template exists");
 assert.match(constants, /algorithm-revision/, "Algorithm revision template exists");
 assert.match(constants, /product-spec/, "Product specification template exists");
+assert.match(constants, /ai-skill-prompt/, "AI skill prompt template exists");
+assert.match(constants, /{{date}}/, "Default content documents template variables");
+assert.match(constants, /{{title}}/, "Default content documents title variable");
+assert.match(aiSkill, /Markdown Studio Document Generator Skill/, "AI Markdown Studio skill file exists");
+assert.match(aiSkill, /QCM Exercise Syntax/, "AI skill documents QCM syntax");
+assert.match(aiSkill, /Research Poster/, "AI skill documents poster-ready structure");
 assert.match(script, /autosaveStatus\.value = "saving"/, "Autosave exposes an active saving state");
 assert.match(script, /checkStorageQuota/, "Storage quota warning helper exists");
 assert.match(script, /navigator\.storage\?\.estimate/, "Storage quota warning uses browser storage estimates");

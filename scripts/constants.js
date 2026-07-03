@@ -14,6 +14,13 @@ Write Markdown, preview it live, organize blocks, and export polished documents 
 
 ## Quick Start
 
+Template variables render automatically in preview and exports:
+
+- \`{{date}}\` -> today's date
+- \`{{title}}\` -> document title
+- \`{{author}}\` -> export author
+- \`{{filename}}\` -> active file name
+
 \`\`\`markdown
 **bold** _italic_ \`inline code\`
 ## Heading
@@ -238,6 +245,15 @@ const TEMPLATES = [
     theme: "hbs",
     content:
       "# Project Retrospective\n\n**Project:** Name · **Period:** Sprint / Month · **Date:** {{date}}\n\n## Outcome Summary\n\n| Objective | Result | Notes |\n|-----------|--------|-------|\n| Ship milestone | Done | Released on time |\n| Reduce defects | Partial | More smoke tests needed |\n\n## What Went Well\n\n- Win one\n- Win two\n- Practice worth keeping\n\n## What Was Hard\n\n- Constraint one\n- Bottleneck two\n- Unexpected risk\n\n## Root Cause Map\n\n```mermaid\nmindmap\n  root((Delivery))\n    Planning\n      Scope clarity\n      Dependencies\n    Execution\n      Reviews\n      Testing\n    Operations\n      Release\n      Support\n```\n\n## Decisions\n\n| Decision | Owner | Due |\n|----------|-------|-----|\n| Add smoke test checklist | Team | Next sprint |\n\n## Follow-up\n\n- [ ] Action one\n- [ ] Action two\n",
+  },
+  {
+    id: "ai-skill-prompt",
+    name: "AI Skill Prompt",
+    icon: "ti-robot",
+    desc: "Prompt for AI generators",
+    theme: "technical",
+    content:
+      "# Markdown Studio AI Skill Prompt\n\nCopy this prompt into any AI assistant when you want it to generate Markdown Studio-ready files.\n\n## Prompt\n\nYou are generating Markdown for Markdown Studio, a browser-based Markdown workspace with live preview, KaTeX math, Mermaid diagrams, QCM exercises, image support, table editing, research poster export, per-file styling, snapshots, and multiple export modes.\n\nOutput Markdown only unless I ask for explanation. Start with one # title. Use ## sections for structure. Use tables for comparisons. Use inline math with $...$ and display math with $$...$$. Use Mermaid diagrams only when they improve comprehension. Use QCM syntax for interactive exercises. Use concise sections if the document is intended for the poster builder.\n\nMarkdown Studio variables may be used in reusable templates: {{!title}}, {{!author}}, {{!date}}, {{!year}}, {{!time}}, {{!filename}}, {{!theme}}, and {{!app}}.\n\n## QCM Syntax\n\n?? Question text can include $math$.\n\n- [x] Correct answer\n- [ ] Wrong answer\n- [ ] Wrong answer\n\n?! Explanation shown after checking.\n\n---\n\n## Recommended Outputs\n\n### Revision document\n\nUse: summary, concept table, formulas, worked examples, common mistakes, practice QCM.\n\n### Resume\n\nUse: profile, experience with measurable impact, projects, education, skills, clean bullet points.\n\n### Course or lesson\n\nUse: learning objectives, explanation, diagram, examples, exercises, recap, QCM check.\n\n### Research paper\n\nUse: abstract, introduction, methodology, results, discussion, conclusion, references.\n\n### Technical documentation\n\nUse: overview, installation, quick start, API reference table, examples, errors, troubleshooting.\n\n### Research poster\n\nUse a # title and concise ## panels: Background, Research Question, Method, Results, Discussion, Conclusion.\n\n## Quality Checklist\n\n- One clear # title.\n- Valid ## section structure.\n- Valid Markdown tables.\n- Valid Mermaid syntax inside mermaid fences.\n- Valid LaTeX math where needed.\n- QCM uses exact ??, - [x], - [ ], and ?! syntax.\n- Output is self-contained and ready to paste into Markdown Studio.\n\nNow generate the requested Markdown Studio document for this task: [describe the document here].\n",
   },
   {
     id: "minimal",

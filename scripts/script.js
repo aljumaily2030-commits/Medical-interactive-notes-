@@ -1260,6 +1260,8 @@ createApp({
     const viewMode = ref("split");
     const sidebarOpen = ref(true);
     const topbarOpen = ref(false);
+    const themeMode = ref("system");
+    const systemDarkMode = ref(false);
     const darkMode = ref(false);
     const focusMode = ref(false);
     const wordWrap = ref(true);
@@ -1274,6 +1276,7 @@ createApp({
     const showTemplates = ref(false);
     const showStylePanel = ref(false);
     const showShortcuts = ref(false);
+    const showTutorial = ref(false);
     const showFR = ref(false);
     const showSettings = ref(false);
     const showHistory = ref(false);
@@ -1571,6 +1574,88 @@ createApp({
     const fileCtxTarget = ref(null);
 
     const shortcuts = SHORTCUTS;
+    const tutorialSections = [
+      {
+        icon: "ti-sparkles",
+        title: "Start Fast",
+        items: [
+          "Create a file from the sidebar or topbar, then write Markdown in the editor.",
+          "Switch between editor, split, preview, and focus modes from the topbar.",
+          "Use Templates for ready-made research papers, QCM exams, lab reports, posters, product specs, and more.",
+          "Template variables such as {{date}}, {{title}}, {{author}}, {{year}}, and {{filename}} render automatically.",
+        ],
+      },
+      {
+        icon: "ti-markdown",
+        title: "Write Markdown",
+        items: [
+          "Use headings, lists, blockquotes, tables, links, images, code fences, and horizontal rules.",
+          "Use Paste as Markdown to bring formatted web or document content into the editor cleanly.",
+          "Open the block organizer to reorder, duplicate, delete, and insert document blocks.",
+          "Use the source-backed table editor from the preview toolbar to edit Markdown tables visually.",
+        ],
+      },
+      {
+        icon: "ti-math-function",
+        title: "Math And Diagrams",
+        items: [
+          "Open the LaTeX builder for symbols, matrices, cases, fractions, and common formulas.",
+          "Write inline math with $...$ and display math with $$...$$.",
+          "Open the Mermaid builder to insert flowcharts, sequence diagrams, class diagrams, timelines, ER diagrams, Gantt charts, and more.",
+          "Open a diagram from the preview to zoom, pan, copy source, or export SVG/PNG.",
+        ],
+      },
+      {
+        icon: "ti-list-check",
+        title: "QCM Exercises",
+        items: [
+          "Start a question with ??, mark correct answers with - [x], wrong answers with - [ ], and explanations with ?!.",
+          "QCM blocks support LaTeX inside questions, choices, and explanations.",
+          "Single-answer and multi-answer questions check automatically as users select choices.",
+          "Export QCM content as interactive HTML, structured JSON, or a printable answer sheet.",
+        ],
+      },
+      {
+        icon: "ti-photo",
+        title: "Images And Blocks",
+        items: [
+          "Use the image manager to upload, crop, resize, select, and insert images.",
+          "Images are stored in the workspace and can be embedded into HTML and Word-compatible exports.",
+          "Use preview block controls to resize, align, add borders, change background, adjust padding, and tune radius.",
+          "Per-file style settings let each document keep its own visual identity.",
+        ],
+      },
+      {
+        icon: "ti-presentation",
+        title: "Research Posters",
+        items: [
+          "Structure the source document with ## sections, then open Export > Research Poster.",
+          "Choose poster size, orientation, columns, and theme.",
+          "Drag sections into layout slots or use auto-fill, then reorder or clear slots as needed.",
+          "Print the poster to PDF with dynamic page sizing for the selected poster format.",
+        ],
+      },
+      {
+        icon: "ti-download",
+        title: "Export And Backup",
+        items: [
+          "Export Markdown, HTML, PDF print, Word-compatible .doc, JSON, QCM assets, and workspace ZIP.",
+          "HTML and Word-compatible exports include metadata and embedded app-managed images.",
+          "Use Settings to backup or restore the entire workspace.",
+          "Quota warnings help protect image-heavy workspaces before storage becomes risky.",
+        ],
+      },
+      {
+        icon: "ti-shield-check",
+        title: "Reliability",
+        items: [
+          "Autosave writes are queued so newer content is not overwritten by stale saves.",
+          "Snapshots preserve history and can be restored from the History panel.",
+          "Use file search and drag reorder to keep larger workspaces manageable.",
+          "Before clearing browser data or changing devices, export a workspace backup or ZIP.",
+        ],
+      },
+    ];
 
     function applyThemeMode(enabled) {
       if (enabled) document.documentElement.setAttribute("data-theme", "dark");
@@ -1583,6 +1668,44 @@ createApp({
           : "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css";
       }
     }
+
+    function resolveThemeMode(mode = themeMode.value) {
+      return mode === "system" ? systemDarkMode.value : mode === "dark";
+    }
+
+    function applyThemePreference(mode = themeMode.value) {
+      const enabled = resolveThemeMode(mode);
+      darkMode.value = enabled;
+      applyThemeMode(enabled);
+      editorInstance?.setDarkMode(enabled);
+      scheduleRender?.();
+    }
+
+    function setThemeMode(mode) {
+      themeMode.value = ["light", "dark", "system"].includes(mode)
+        ? mode
+        : "system";
+      applyThemePreference(themeMode.value);
+      setSetting("themeMode", themeMode.value);
+      setSetting("darkMode", darkMode.value);
+    }
+
+    function cycleThemeMode() {
+      const modes = ["light", "dark", "system"];
+      const next = modes[(modes.indexOf(themeMode.value) + 1) % modes.length];
+      setThemeMode(next);
+    }
+
+    const themeModeIcon = computed(() => {
+      if (themeMode.value === "system") return "ti ti-device-desktop";
+      return darkMode.value ? "ti ti-sun" : "ti ti-moon";
+    });
+
+    const themeModeLabel = computed(() => {
+      if (themeMode.value === "system")
+        return `System (${darkMode.value ? "dark" : "light"})`;
+      return darkMode.value ? "Dark" : "Light";
+    });
 
     const ctxMenu = computed(() => {
       if (fileCtxOpen.value) {
@@ -1622,6 +1745,8 @@ createApp({
     const autosaveStatus = ref("saved"); // 'saved' | 'saving' | 'unsaved'
     const autosaveDelay = ref(2000);
     let syncingEditorProgrammatically = false;
+    let systemThemeMedia = null;
+    let systemThemeListener = null;
 
     // snapshots panel
     const snapshots = ref([]);
@@ -1664,10 +1789,73 @@ createApp({
       },
     });
 
+    function stripMarkdownTitle(text) {
+      return String(text || "")
+        .replace(/^#+\s*/, "")
+        .replace(/[*_`[\]()]/g, "")
+        .trim();
+    }
+
+    function getContentTitle(content) {
+      const h1 = String(content || "")
+        .split("\n")
+        .find((line) => /^#\s+/.test(line) && !/{{\s*title\s*}}/i.test(line));
+      return h1 ? stripMarkdownTitle(h1) : "";
+    }
+
+    function buildTemplateVariableMap(content = "", overrides = {}) {
+      const now = new Date();
+      const pad = (value) => String(value).padStart(2, "0");
+      const fileName = overrides.filename || activeFile.value?.name || "untitled.md";
+      const title =
+        overrides.title ||
+        exportTitle.value ||
+        getContentTitle(content) ||
+        fileName.replace(/\.[^.]+$/, "") ||
+        "Untitled";
+      const author = overrides.author || exportAuthor.value || "Author";
+      const monthName = now.toLocaleString(undefined, { month: "long" });
+      const values = {
+        app: "Markdown Studio",
+        title,
+        author,
+        date: now.toLocaleDateString(),
+        today: now.toLocaleDateString(),
+        time: now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        datetime: now.toLocaleString(),
+        isodate: now.toISOString().slice(0, 10),
+        iso: now.toISOString(),
+        year: String(now.getFullYear()),
+        month: pad(now.getMonth() + 1),
+        monthname: monthName,
+        day: pad(now.getDate()),
+        filename: fileName,
+        file: fileName,
+        theme: overrides.theme || renderTheme.value || "default",
+        template: overrides.template || "",
+      };
+      values["iso-date"] = values.isodate;
+      values["month-name"] = monthName;
+      return values;
+    }
+
+    function renderTemplateVariables(content, overrides = {}) {
+      const source = String(content || "");
+      const values = buildTemplateVariableMap(source, overrides);
+      return source.replace(/{{\s*(!?[\w.-]+|raw:[\w.-]+)\s*}}/g, (match, key) => {
+        const normalized = String(key || "").toLowerCase();
+        if (normalized.startsWith("!")) return `{{${normalized.slice(1)}}}`;
+        if (normalized.startsWith("raw:")) return `{{${normalized.slice(4)}}}`;
+        return Object.prototype.hasOwnProperty.call(values, normalized)
+          ? values[normalized]
+          : match;
+      });
+    }
+
     function renderMarkdownToHtml(markdown) {
       try {
         if (!window.marked) return "<p>Loading...</p>";
-        let src = markdown || "";
+        let src = renderTemplateVariables(markdown || "");
         const mathBlocks = [];
         const qcm = extractQcmBlocks(src);
         src = qcm.source;
@@ -1802,7 +1990,7 @@ createApp({
       const h1 = (currentContent.value || "")
         .split("\n")
         .find((line) => /^#\s+/.test(line));
-      if (h1) return h1.replace(/^#\s+/, "").trim();
+      if (h1) return stripMarkdownTitle(renderTemplateVariables(h1.replace(/^#\s+/, "")));
       return activeFile.value?.name?.replace(/\.[^.]+$/, "") || "Research Poster";
     }
 
@@ -2814,6 +3002,7 @@ createApp({
           showImgManager.value =
           showTemplates.value =
           showShortcuts.value =
+          showTutorial.value =
           showFR.value =
           showSettings.value =
           showHistory.value =
@@ -3934,7 +4123,12 @@ createApp({
         confirmText: "Replace",
       });
       if (!ok) return;
-      syncToEditor(t.content);
+      const content = renderTemplateVariables(t.content || "", {
+        title: t.title || t.name || exportTitle.value,
+        template: t.name || "",
+        theme: t.theme || renderTheme.value,
+      });
+      syncToEditor(content);
       syncFromEditor();
       if (t.style) applyFileStyle(t.style);
       else if (t.theme) renderTheme.value = t.theme;
@@ -4320,7 +4514,13 @@ ${getQcmExportScript()}
     }
 
     function exportPdfFn() {
-      window.print();
+      document.body.classList.add("document-printing");
+      const clearPrintMode = () => document.body.classList.remove("document-printing");
+      window.addEventListener("afterprint", clearPrintMode, { once: true });
+      nextTick(() => {
+        window.print();
+        setTimeout(clearPrintMode, 800);
+      });
     }
 
     function exportDocx() {
@@ -4675,10 +4875,7 @@ ${body}
     // ── dark mode ─────────────────────────────────────────────────────────────
 
     function toggleDark() {
-      darkMode.value = !darkMode.value;
-      applyThemeMode(darkMode.value);
-      editorInstance?.setDarkMode(darkMode.value);
-      setSetting("darkMode", darkMode.value);
+      cycleThemeMode();
     }
 
     // ── style panel ───────────────────────────────────────────────────────────
@@ -4805,6 +5002,15 @@ ${body}
     onMounted(async () => {
       // Setup marked
       setupMarked();
+      systemThemeMedia = window.matchMedia?.("(prefers-color-scheme: dark)") || null;
+      systemDarkMode.value = Boolean(systemThemeMedia?.matches);
+      systemThemeListener = (event) => {
+        systemDarkMode.value = Boolean(event.matches);
+        if (themeMode.value === "system") applyThemePreference("system");
+      };
+      systemThemeMedia?.addEventListener?.("change", systemThemeListener);
+      if (systemThemeMedia && !systemThemeMedia.addEventListener)
+        systemThemeMedia.addListener?.(systemThemeListener);
 
       // Mermaid init
       if (window.mermaid) {
@@ -4821,10 +5027,10 @@ ${body}
 
       // Load persisted settings
       const settings = await getAllSettings();
-      if (settings.darkMode !== undefined) {
-        darkMode.value = settings.darkMode;
-        applyThemeMode(darkMode.value);
-      }
+      if (settings.themeMode) themeMode.value = settings.themeMode;
+      else if (settings.darkMode !== undefined)
+        themeMode.value = settings.darkMode ? "dark" : "light";
+      applyThemePreference(themeMode.value);
       if (settings.wordWrap !== undefined) wordWrap.value = settings.wordWrap;
       if (settings.editorFontSize)
         editorFontSize.value = settings.editorFontSize;
@@ -4837,6 +5043,17 @@ ${body}
       if (settings.renderTheme) renderTheme.value = settings.renderTheme;
       if (settings.sidebarOpen !== undefined)
         sidebarOpen.value = settings.sidebarOpen;
+      if (settings.topbarOpen !== undefined)
+        topbarOpen.value = settings.topbarOpen;
+      if (settings.viewMode) viewMode.value = settings.viewMode;
+      if (settings.editorWidth) editorWidth.value = settings.editorWidth;
+      if (settings.activePanel) activePanel.value = settings.activePanel;
+      if (settings.showStylePanel !== undefined)
+        showStylePanel.value = settings.showStylePanel;
+      if (settings.syncScrollEnabled !== undefined)
+        syncScrollEnabled.value = settings.syncScrollEnabled;
+      if (settings.sidebarTemplatesOpen !== undefined)
+        sidebarTemplatesOpen.value = settings.sidebarTemplatesOpen;
       if (settings.previewTableLayout)
         previewTableLayout.value = settings.previewTableLayout;
       if (settings.previewScaleScope)
@@ -4861,6 +5078,11 @@ ${body}
 
       // Load files from IndexedDB
       await loadAllFiles();
+      if (activePanel.value === "organizer") parseBlocks();
+      if (settings.hasSeenGuide !== true) {
+        showTutorial.value = true;
+        await setSetting("hasSeenGuide", true);
+      }
 
       // Mount CodeMirror 6 editor
       nextTick(() => {
@@ -4902,12 +5124,23 @@ ${body}
 
       // Persist sidebar/theme changes
       watch(sidebarOpen, (v) => setSetting("sidebarOpen", v));
+      watch(topbarOpen, (v) => setSetting("topbarOpen", v));
+      watch(viewMode, (v) => setSetting("viewMode", v));
+      watch(editorWidth, (v) => setSettingDebounced("editorWidth", v));
+      watch(activePanel, (v) => setSetting("activePanel", v));
+      watch(showStylePanel, (v) => setSetting("showStylePanel", v));
+      watch(syncScrollEnabled, (v) => setSetting("syncScrollEnabled", v));
+      watch(sidebarTemplatesOpen, (v) => setSetting("sidebarTemplatesOpen", v));
       watch(renderTheme, (v) => setSetting("renderTheme", v));
     });
 
     onUnmounted(() => {
       window.removeEventListener("keydown", onWindowKeydown);
       window.removeEventListener("click", closeAllCtx);
+      if (systemThemeMedia && systemThemeListener)
+        systemThemeMedia.removeEventListener?.("change", systemThemeListener);
+      if (systemThemeMedia && systemThemeListener && !systemThemeMedia.removeEventListener)
+        systemThemeMedia.removeListener?.(systemThemeListener);
       editorScrollEl?.removeEventListener("scroll", onEditorScroll);
       previewScrollEl?.removeEventListener("scroll", onPreviewScroll);
       clearInterval(snapshotTimer);
@@ -4932,6 +5165,7 @@ ${body}
       BLOCK_TYPES,
       SHORTCUTS,
       shortcuts,
+      tutorialSections,
 
       // state
       files,
@@ -4947,6 +5181,9 @@ ${body}
       viewMode,
       sidebarOpen,
       topbarOpen,
+      themeMode,
+      themeModeIcon,
+      themeModeLabel,
       darkMode,
       focusMode,
       wordWrap,
@@ -4959,6 +5196,7 @@ ${body}
       showTemplates,
       showStylePanel,
       showShortcuts,
+      showTutorial,
       showFR,
       showSettings,
       showHistory,
@@ -5281,6 +5519,8 @@ ${body}
       ctxDownloadFile,
       startResize,
       toggleDark,
+      setThemeMode,
+      cycleThemeMode,
       toggleSyncScroll,
       resetStyle,
       openSettings,

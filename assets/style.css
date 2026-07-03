@@ -290,6 +290,19 @@ select {
   background-repeat: no-repeat;
   background-position: right 6px center;
 }
+.tb-mode-sel {
+  padding: 4px 24px 4px 8px;
+  font-size: 12px;
+  border-radius: 6px;
+  appearance: none;
+  cursor: pointer;
+  width: 92px;
+  color: var(--fg1);
+  background-color: var(--bg0);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%236b6860' stroke-width='2.5'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+}
 .fname-badge {
   font-size: 12px;
   color: var(--fg2);
@@ -2181,6 +2194,9 @@ select {
 .modal-xl {
   width: 960px;
 }
+.tutorial-modal {
+  width: min(1040px, 96vw);
+}
 .modal-header {
   display: flex;
   align-items: center;
@@ -3391,6 +3407,102 @@ select {
   font-size: 10px;
   color: var(--fg2);
 }
+.tutorial-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--rad2);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--acc) 10%, transparent), transparent 62%),
+    var(--bg1);
+}
+.tutorial-hero h2 {
+  margin: 0 0 6px;
+  color: var(--fg0);
+  font-size: 20px;
+  line-height: 1.15;
+  letter-spacing: 0;
+}
+.tutorial-hero p {
+  margin: 0;
+  max-width: 620px;
+  color: var(--fg2);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.tutorial-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.tutorial-section {
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--rad);
+  background: var(--bg0);
+}
+.tutorial-section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.tutorial-section-head i {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  color: var(--acc);
+  background: var(--acc-bg);
+  font-size: 16px;
+}
+.tutorial-section h3 {
+  margin: 0;
+  color: var(--fg0);
+  font-size: 13px;
+  line-height: 1.2;
+}
+.tutorial-section ul {
+  margin: 0;
+  padding-left: 18px;
+}
+.tutorial-section li {
+  margin: 5px 0;
+  color: var(--fg2);
+  font-size: 12px;
+  line-height: 1.42;
+}
+.tutorial-variable-strip {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+.tutorial-variable-strip > div {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px dashed var(--border2);
+  border-radius: var(--rad);
+  background: var(--bg1);
+}
+.tutorial-variable-strip strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--fg1);
+  font-size: 12px;
+}
+.tutorial-variable-strip span {
+  color: var(--fg2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+}
 .slide-r-enter-active,
 .slide-r-leave-active {
   transition: all 0.2s ease;
@@ -3434,6 +3546,8 @@ select {
   #notif-area,
   .style-panel,
   .focus-toolbar,
+  .modal-overlay:not(.poster-builder-overlay),
+  body.document-printing .modal-overlay,
   #style-panel-wrap {
     display: none !important;
   }
@@ -4358,6 +4472,7 @@ select {
   }
   #topbar:not(.expanded) .tb-file-chip,
   #topbar:not(.expanded) .tb-theme-sel,
+  #topbar:not(.expanded) .tb-mode-sel,
   #topbar:not(.expanded) > .tb-group:not(.tb-group-file),
   #topbar:not(.expanded) .tb-right {
     display: none;
@@ -4385,6 +4500,9 @@ select {
   #topbar.expanded .tb-theme-sel {
     flex: 1 1 150px;
     width: auto;
+  }
+  #topbar.expanded .tb-mode-sel {
+    flex: 0 0 112px;
   }
   .mermaid-builder,
   .latex-builder {
@@ -4420,6 +4538,16 @@ select {
     grid-template-columns: 1fr;
     max-height: 250px;
   }
+  .tutorial-hero,
+  .tutorial-variable-strip {
+    grid-template-columns: 1fr;
+  }
+  .tutorial-hero {
+    flex-direction: column;
+  }
+  .tutorial-grid {
+    grid-template-columns: 1fr;
+  }
   .poster-preview-shell {
     padding: 14px;
   }
@@ -4452,6 +4580,9 @@ select {
   }
   .tb-theme-sel {
     width: 118px;
+  }
+  .tb-mode-sel {
+    width: 104px;
   }
   .fname-badge {
     max-width: 92px;

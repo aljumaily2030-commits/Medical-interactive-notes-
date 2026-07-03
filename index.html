@@ -115,9 +115,7 @@
             <button class="tb-btn" @click="triggerMdUpload" title="Open Markdown or Notebook">
               <i class="ti ti-folder-open"></i>Open
             </button>
-            <button class="tb-btn" @click="openExport" title="Export">
-              <i class="ti ti-download"></i>Export
-            </button>
+
           </div>
         </div>
         <div class="tb-file-chip">
@@ -177,6 +175,9 @@
         </div>
         
         <div class="tb-right">
+           <button class="tb-btn" @click="openExport" title="Export">
+              <i class="ti ti-download"></i>Export
+            </button>
           <div class="tb-group">
             <button
               class="tb-btn tb-accent"
@@ -211,11 +212,24 @@
             </button>
             <div class="tb-group-more">
               
-              <button class="tb-icon" @click="toggleDark" title="Theme mode">
-                <i :class="darkMode?'ti ti-sun':'ti ti-moon'"></i>
+              <button class="tb-icon" @click="cycleThemeMode" :title="'Theme: '+themeModeLabel">
+                <i :class="themeModeIcon"></i>
               </button>
+              <select
+                class="tb-mode-sel"
+                v-model="themeMode"
+                @change="setThemeMode(themeMode)"
+                title="Theme mode"
+              >
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+                <option value="system">System</option>
+              </select>
                <button class="tb-icon" @click="showShortcuts=true" title="Shortcuts">
                 <i class="ti ti-keyboard"></i>
+              </button>
+              <button class="tb-icon" @click="showTutorial=true" title="User guide">
+                <i class="ti ti-help-hexagon"></i>
               </button>
               <button class="tb-icon" :class="{active:focusMode}" @click="focusMode=true" title="Focus">
                 <i class="ti ti-maximize"></i>
@@ -655,8 +669,17 @@
                   class="tool-btn"
                   :class="{active:showStylePanel}"
                   @click="showStylePanel=!showStylePanel"
+                  title="Preview style"
                 >
                   <i class="ti ti-adjustments-horizontal"></i>
+                </button>
+                <button
+                  class="tool-btn"
+                  :class="{active:previewCodeWrap}"
+                  @click="previewCodeWrap=!previewCodeWrap"
+                  title="Wrap code blocks"
+                >
+                  <i class="ti ti-text-wrap"></i>
                 </button>
                 <button class="tool-btn" @click="copyHtml" title="Copy HTML">
                   <i class="ti ti-copy"></i>
@@ -2475,6 +2498,22 @@
               </div>
             </div>
 
+            <!-- Appearance -->
+            <div class="sp-section">
+              <div class="sp-title">Appearance</div>
+              <div class="form-group">
+                <label class="form-label">Theme mode</label>
+                <select v-model="themeMode" @change="setThemeMode(themeMode)">
+                  <option value="light">Light</option>
+                  <option value="dark">Dark</option>
+                  <option value="system">System</option>
+                </select>
+              </div>
+              <div class="settings-hint">
+                System follows your browser or OS color scheme.
+              </div>
+            </div>
+
             <!-- Editor -->
             <div class="sp-section">
               <div class="sp-title">Editor</div>
@@ -2667,6 +2706,61 @@
           >
             Snapshots are stored locally in IndexedDB. Up to 50 snapshots per
             file.
+          </div>
+        </div>
+      </div>
+
+      <!-- USER GUIDE -->
+      <div
+        class="modal-overlay"
+        v-if="showTutorial"
+        @click.self="showTutorial=false"
+      >
+        <div class="modal-box modal-xl tutorial-modal">
+          <div class="modal-header">
+            <div class="modal-title">
+              <i class="ti ti-help-hexagon"></i>Markdown Studio Guide
+            </div>
+            <button class="modal-close" @click="showTutorial=false">
+              <i class="ti ti-x"></i>
+            </button>
+          </div>
+          <div class="tutorial-hero">
+            <div>
+              <h2>Build polished Markdown documents from one workspace.</h2>
+              <p>
+                Write, preview, customize, teach, diagram, posterize, export,
+                and back up your work without leaving the app.
+              </p>
+            </div>
+            <button class="btn btn-primary" @click="showTutorial=false;openTemplates()">
+              <i class="ti ti-layout-grid"></i>Open Templates
+            </button>
+          </div>
+          <div class="tutorial-grid">
+            <section
+              class="tutorial-section"
+              v-for="section in tutorialSections"
+              :key="section.title"
+            >
+              <div class="tutorial-section-head">
+                <i :class="'ti '+section.icon"></i>
+                <h3>{{section.title}}</h3>
+              </div>
+              <ul>
+                <li v-for="item in section.items" :key="item">{{item}}</li>
+              </ul>
+            </section>
+          </div>
+          <div class="tutorial-variable-strip">
+            <div>
+              <strong>Template variables</strong>
+              <span v-pre>{{date}}, {{title}}, {{author}}, {{year}}, {{filename}}, {{time}}</span>
+            </div>
+            <div>
+              <strong>QCM syntax</strong>
+              <span>?? question · - [x] correct · - [ ] wrong · ?! explanation</span>
+            </div>
           </div>
         </div>
       </div>
