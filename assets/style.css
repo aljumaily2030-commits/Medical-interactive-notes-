@@ -3571,6 +3571,13 @@ select {
     min-height: 0 !important;
     background: white !important;
   }
+  #preview-page img,
+  #preview-page figure,
+  #preview-page .preview-resize-wrap.preview-resize-image,
+  #preview-page .preview-image-block {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
   body.poster-printing #vue-root,
   body.poster-printing #app-body,
   body.poster-printing #main {
