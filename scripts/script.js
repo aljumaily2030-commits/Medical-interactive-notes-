@@ -26,7 +26,10 @@ import {
   deleteSnapshot,
   getSetting,
   setSetting,
+  deleteSetting,
   getAllSettings,
+  getAllImages,
+  replaceAllImages,
   exportWorkspaceData,
   importWorkspaceData,
   migrateFromLocalStorage,
@@ -1542,6 +1545,18 @@ createApp({
 
     function genId() {
       return Date.now().toString(36) + Math.random().toString(36).slice(2);
+    }
+
+    const settingDebounceTimers = new Map();
+    function setSettingDebounced(key, value, delay = 300) {
+      clearTimeout(settingDebounceTimers.get(key));
+      settingDebounceTimers.set(
+        key,
+        setTimeout(() => {
+          settingDebounceTimers.delete(key);
+          setSetting(key, value);
+        }, delay),
+      );
     }
 
     function notify(msg, type = "success", duration = 2500) {
@@ -3941,9 +3956,9 @@ ${body}
       editorInstance?.setFontSize(v);
     });
 
-    watch(previewTableLayout, (v) => setSetting("previewTableLayout", v));
-    watch(previewScaleScope, (v) => setSetting("previewScaleScope", v));
-    watch(previewScaleFactor, (v) => setSetting("previewScaleFactor", v));
+    watch(previewTableLayout, (v) => setSettingDebounced("previewTableLayout", v));
+    watch(previewScaleScope, (v) => setSettingDebounced("previewScaleScope", v));
+    watch(previewScaleFactor, (v) => setSettingDebounced("previewScaleFactor", v));
     watch(userTemplates, (templates) => setSetting("userTemplates", templates), {
       deep: true,
     });
@@ -3951,7 +3966,16 @@ ${body}
       images,
       (library) => {
         rebuildImagePathMap();
-        setSetting("imageLibrary", library);
+        clearTimeout(settingDebounceTimers.get("imageStore"));
+        settingDebounceTimers.set(
+          "imageStore",
+          setTimeout(() => {
+            settingDebounceTimers.delete("imageStore");
+            replaceAllImages(library).catch((error) => {
+              notify(error?.message || "Could not save image library", "warn");
+            });
+          }, 500),
+        );
       },
       { deep: true },
     );
@@ -4044,8 +4068,14 @@ ${body}
         fileStyleDefaults.value = sanitizeStyleDefaults(settings.fileStyleDefaults);
       if (Array.isArray(settings.userTemplates))
         userTemplates.value = settings.userTemplates;
-      if (Array.isArray(settings.imageLibrary)) {
+      const storedImages = await getAllImages();
+      if (storedImages.length) {
+        images.value = storedImages;
+        rebuildImagePathMap();
+      } else if (Array.isArray(settings.imageLibrary)) {
         images.value = settings.imageLibrary;
+        await replaceAllImages(settings.imageLibrary);
+        await deleteSetting("imageLibrary");
         rebuildImagePathMap();
       }
       checkStorageQuota("Workspace");
@@ -4103,6 +4133,8 @@ ${body}
       previewScrollEl?.removeEventListener("scroll", onPreviewScroll);
       clearInterval(snapshotTimer);
       clearTimeout(syncIndicatorTimer);
+      settingDebounceTimers.forEach((timer) => clearTimeout(timer));
+      settingDebounceTimers.clear();
       editorInstance?.destroy();
     });
 

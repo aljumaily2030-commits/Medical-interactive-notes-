@@ -48,7 +48,8 @@ assert.match(script, /function getExportMetadata/, "Exports include template met
 assert.match(script, /markdown-studio-metadata/, "HTML exports include metadata script");
 assert.match(script, /function createZipBlob/, "Export-all ZIP writer exists");
 assert.match(script, /function exportAllZip/, "Workspace ZIP export action exists");
-assert.match(script, /imageLibrary/, "Image library persistence is wired");
+assert.match(script, /getAllImages/, "Image library loads from a dedicated IDB store");
+assert.match(script, /replaceAllImages/, "Image library persists outside settings");
 assert.match(script, /userTemplates/, "User template persistence is wired");
 assert.match(editor, /setValue\(text, options = \{\}\)/, "Editor adapter supports silent setValue options");
 assert.match(editor, /onPaste/, "Editor adapter forwards paste events");
@@ -78,6 +79,8 @@ assert.match(storage, /_autosaveQueue/, "Autosave writes are serialized through 
 assert.match(storage, /_latestAutosaveByFile/, "Autosave skips stale queued saves by file");
 assert.match(storage, /exportWorkspaceData/, "Workspace backup export API exists");
 assert.match(storage, /importWorkspaceData/, "Workspace restore import API exists");
+assert.match(storage, /DB_VERSION = 3/, "IndexedDB schema includes the images store migration");
+assert.match(storage, /createObjectStore\('images'/, "Images use a dedicated IndexedDB store");
 assert.match(script, /autosaveStatus\.value = "saving"/, "Autosave exposes an active saving state");
 assert.match(script, /checkStorageQuota/, "Storage quota warning helper exists");
 assert.match(script, /navigator\.storage\?\.estimate/, "Storage quota warning uses browser storage estimates");

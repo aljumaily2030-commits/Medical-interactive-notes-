@@ -382,28 +382,6 @@ select {
   left: 14px;
   right: 14px;
 }
-#editor-textarea {
-  flex: 1;
-  width: 100%;
-  resize: none;
-  border: none;
-  outline: none;
-  background: var(--bg0);
-  color: var(--fg0);
-  font-family: var(--font-mono);
-  font-size: 13px;
-  line-height: 1.75;
-  padding: 18px 22px;
-  tab-size: 2;
-  caret-color: var(--acc);
-  overflow-y: auto;
-  overflow-x: auto;
-  display: block;
-  box-sizing: border-box;
-}
-#editor-textarea::selection {
-  background: color-mix(in srgb, var(--acc) 22%, transparent);
-}
 #preview-pane {
   display: flex;
   flex-direction: column;
@@ -978,16 +956,6 @@ select {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-@media print {
-  .preview-block-toolbar{
-    display: none !important;
-  }
-  .code-lang {
-    display: none !important;
-  }
-  
-}
-
 .preview-resize-wrap {
   position: relative;
   max-width: 100%;
@@ -2841,6 +2809,10 @@ select {
   .style-panel,
   .focus-toolbar,
   #style-panel-wrap {
+    display: none !important;
+  }
+  .preview-block-toolbar,
+  .code-lang {
     display: none !important;
   }
   #preview-pane {

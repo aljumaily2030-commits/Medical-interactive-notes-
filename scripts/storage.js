@@ -3,15 +3,16 @@
  * IndexedDB persistence layer: files, autosave, version snapshots, settings.
  *
  * DB name  : markdown-studio
- * Version  : 2
+ * Version  : 3
  * Stores:
  *   files      { id, name, content, createdAt, updatedAt }
  *   snapshots  { id (auto), fileId, content, savedAt, label }
  *   settings   { key, value }
+ *   images     { id, name, path, mime, dataUrl, width, height }
  */
 
 const DB_NAME    = 'markdown-studio';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const MAX_SNAPSHOTS_PER_FILE = 50;
 
 // ─── open ──────────────────────────────────────────────────────────────────
@@ -45,6 +46,12 @@ export function openDB() {
       // settings store (v2)
       if (!db.objectStoreNames.contains('settings')) {
         db.createObjectStore('settings', { keyPath: 'key' });
+      }
+
+      // images store (v3)
+      if (!db.objectStoreNames.contains('images')) {
+        const is = db.createObjectStore('images', { keyPath: 'id' });
+        is.createIndex('path', 'path', { unique: false });
       }
     };
 
@@ -241,6 +248,38 @@ export async function replaceAllSnapshots(snapshots = []) {
   }
 }
 
+// ─── IMAGES ────────────────────────────────────────────────────────────────
+
+export async function getAllImages() {
+  await openDB();
+  return getAll('images');
+}
+
+export async function saveImage(image) {
+  await openDB();
+  return promisify(tx('images', 'readwrite').put(toPlainData(image)));
+}
+
+export async function deleteImage(id) {
+  await openDB();
+  return promisify(tx('images', 'readwrite').delete(id));
+}
+
+export async function replaceAllImages(images = []) {
+  await openDB();
+  return new Promise((resolve, reject) => {
+    const transaction = _db.transaction('images', 'readwrite');
+    const store = transaction.objectStore('images');
+    store.clear();
+    for (const image of images) {
+      store.put(toPlainData(image));
+    }
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+  });
+}
+
 // ─── SETTINGS ──────────────────────────────────────────────────────────────
 
 export async function getSetting(key, defaultValue = null) {
@@ -256,6 +295,11 @@ export async function getSetting(key, defaultValue = null) {
 export async function setSetting(key, value) {
   await openDB();
   return promisify(tx('settings', 'readwrite').put({ key, value: toPlainData(value) }));
+}
+
+export async function deleteSetting(key) {
+  await openDB();
+  return promisify(tx('settings', 'readwrite').delete(key));
 }
 
 export async function getAllSettings() {
@@ -282,6 +326,7 @@ export async function exportWorkspaceData() {
     files: await getAllFiles(),
     snapshots: await getAllSnapshots(),
     settings: await getAllSettings(),
+    images: await getAllImages(),
   };
 }
 
@@ -292,9 +337,16 @@ export async function importWorkspaceData(data) {
   const settings = data?.settings && typeof data.settings === 'object'
     ? data.settings
     : {};
+  const images = Array.isArray(data?.images)
+    ? data.images
+    : Array.isArray(settings.imageLibrary)
+      ? settings.imageLibrary
+      : [];
   await replaceAllFiles(files);
   await replaceAllSnapshots(snapshots);
   await replaceAllSettings(settings);
+  await replaceAllImages(images);
+  await deleteSetting('imageLibrary');
 }
 
 // ─── MIGRATION: localStorage → IndexedDB ──────────────────────────────────
