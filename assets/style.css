@@ -895,6 +895,72 @@ select {
 .qcm-choice:hover {
   border-color: color-mix(in srgb, var(--acc) 38%, var(--border));
 }
+.qcm-choice input[data-correct] {
+  appearance: none;
+  -webkit-appearance: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin: 1px 0 0;
+  border: 1.5px solid color-mix(in srgb, var(--fg3) 55%, var(--border));
+  border-radius: 6px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg0) 90%, white), var(--bg1));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    0 1px 2px rgba(15, 23, 42, 0.08);
+  cursor: pointer;
+  transition:
+    border-color 0.14s ease,
+    background 0.14s ease,
+    box-shadow 0.14s ease,
+    transform 0.14s ease;
+  justify-content: center;
+  align-content: center;
+}
+.qcm-choice input[type="radio"][data-correct] {
+  border-radius: 999px;
+}
+.qcm-choice input[data-correct]::after {
+  content: "";
+  width: 10px;
+  height: 10px;
+  transform: scale(0);
+  transition: transform 0.14s ease;
+}
+.qcm-choice input[type="checkbox"][data-correct]::after {
+  width: 9px;
+  height: 5px;
+  border: solid white;
+  border-width: 0 0 2px 2px;
+  transform: translateY(-1px) rotate(-45deg) scale(0);
+}
+.qcm-choice input[type="radio"][data-correct]::after {
+  border-radius: 999px;
+  background: var(--succ);
+}
+.qcm-choice input[data-correct]:hover {
+  border-color: var(--acc);
+  transform: translateY(-1px);
+}
+.qcm-choice input[data-correct]:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--acc) 24%, transparent);
+  outline-offset: 2px;
+}
+.qcm-choice input[data-correct]:checked {
+  border-color: var(--acc);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--acc) 82%, white), var(--acc));
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--acc) 16%, transparent),
+    0 6px 14px color-mix(in srgb, var(--acc) 18%, transparent);
+}
+.qcm-choice input[type="checkbox"][data-correct]:checked::after {
+  transform: translateY(-1px) rotate(-45deg) scale(1);
+}
+.qcm-choice input[type="radio"][data-correct]:checked::after {
+  transform: scale(1);
+}
 .qcm-choice.is-selected {
   border-color: color-mix(in srgb, var(--acc) 58%, var(--border));
   background: color-mix(in srgb, var(--acc) 7%, var(--bg0));
@@ -946,19 +1012,17 @@ select {
   white-space: pre-wrap;
 }
 .qcm-widget.is-correct {
-  border-color: color-mix(in srgb, var(--ok) 56%, var(--border));
-  outline-color: color-mix(in srgb, var(--ok) 36%, transparent);
-  background: color-mix(in srgb, var(--ok) 6%, var(--bg1));
+  outline-color: color-mix(in srgb, var(--suc) 36%, transparent);
+  background: color-mix(in srgb, var(--suc) 6%, var(--bg1));
 }
 .qcm-widget.is-correct .qcm-feedback {
-  color: var(--ok);
+  color: var(--suc);
 }
 .qcm-widget.is-correct .qcm-type {
-  border-color: color-mix(in srgb, var(--ok) 42%, var(--border));
-  color: var(--ok);
+  border-color: color-mix(in srgb, var(--suc) 42%, var(--border));
+  color: var(--suc);
 }
 .qcm-widget.is-incorrect {
-  border-color: color-mix(in srgb, var(--err) 56%, var(--border));
   outline-color: color-mix(in srgb, var(--err) 34%, transparent);
   background: color-mix(in srgb, var(--err) 6%, var(--bg1));
 }
@@ -970,23 +1034,40 @@ select {
   color: var(--err);
 }
 .qcm-widget.is-pending {
-  border-color: color-mix(in srgb, var(--acc) 58%, var(--border));
   outline-color: color-mix(in srgb, var(--acc) 34%, transparent);
 }
 .qcm-widget.is-pending .qcm-feedback,
 .qcm-widget.is-pending .qcm-type {
   color: var(--acc);
 }
+.qcm-choice {
+  display: flex;
+  justify-content: left;
+  align-content: center;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 15px;
+}
 .qcm-choice.is-choice-correct {
-  border-color: color-mix(in srgb, var(--ok) 62%, var(--border));
+  border-color: color-mix(in srgb, var(--suc) 62%, var(--border));
+}
+.qcm-choice.is-choice-correct input[data-correct] {
+  border-color: var(--suc);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--suc) 78%, white), var(--suc));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--suc) 14%, transparent);
 }
 .qcm-choice.is-choice-correct .qcm-choice-marker {
-  background: var(--ok);
+  background: var(--suc);
   color: white;
 }
 .qcm-choice.is-choice-wrong {
   border-color: color-mix(in srgb, var(--err) 62%, var(--border));
   background: color-mix(in srgb, var(--err) 7%, var(--bg0));
+}
+.qcm-choice.is-choice-wrong input[data-correct] {
+  border-color: var(--err);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--err) 78%, white), var(--err));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--err) 14%, transparent);
 }
 .qcm-choice.is-choice-wrong .qcm-choice-marker {
   background: var(--err);

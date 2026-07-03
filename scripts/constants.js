@@ -1,14 +1,16 @@
 const DEFAULT_CONTENT = `# Welcome to Markdown Studio
 
-Start writing your document here. Use the toolbar above for formatting, or type markdown directly.
+Write Markdown, preview it live, organize blocks, and export polished documents without leaving the browser.
 
 ## Features
 
-- **Live Preview** — see your document rendered in real time
-- **LaTeX Math** — press Ctrl+M or click the LaTeX button
-- **Mermaid Diagrams** — press Ctrl+G
-- **Block Organizer** — press Ctrl+O
-- **Export** — PDF, HTML, DOCX, Markdown, and more
+- **Live Preview** - editor, split, preview, and focus modes
+- **LaTeX Math** - press Ctrl+M or click the LaTeX button
+- **Mermaid Diagrams** - cached preview, fullscreen viewer, SVG/PNG export
+- **QCM Exercises** - interactive multiple-choice blocks with JSON and answer-sheet export
+- **Research Posters** - build fixed-size poster layouts from your sections
+- **Image Library** - upload, resize, crop, insert, and embed images in exports
+- **Workspace Safety** - autosave queue, snapshots, backup/restore, and ZIP export
 
 ## Quick Start
 
@@ -23,9 +25,23 @@ $$
 E = mc^2
 $$
 
+## QCM Example
+
+?? What is the derivative of $x^2$?
+
+- [ ] $x$
+- [x] $2x$
+- [ ] $x^3$
+- [ ] $\\frac{1}{x}$
+
+?! Apply the power rule: $\\frac{d}{dx}x^n = nx^{n-1}$.
+
 \`\`\`mermaid
 graph LR
-  A[Write] --> B[Preview] --> C[Export]
+  A[Write] --> B[Preview]
+  B --> C{Export}
+  C --> D[HTML / PDF]
+  C --> E[Poster / ZIP]
 \`\`\`
 `;
 
@@ -168,6 +184,60 @@ const TEMPLATES = [
     theme: "technical",
     content:
       "# Notebook Analysis Report\n\n<div class=\"nb-document-meta\">Notebook-style document · imported cells can be restyled here</div>\n\n## Objective\n\nState the question, dataset, or experiment being analyzed.\n\n<div class=\"nb-cell-label\">In [1]</div>\n\n```python\nimport pandas as pd\nimport matplotlib.pyplot as plt\n\n# Load and inspect the dataset\ndf = pd.read_csv(\"data.csv\")\ndf.head()\n```\n\n<div class=\"nb-output\"><div class=\"nb-cell-label\">Out [1]</div><pre>5 rows x 8 columns</pre></div>\n\n## Findings\n\n- Key observation one\n- Key observation two\n- Limitation or next step\n\n<div class=\"nb-cell-label\">In [2]</div>\n\n```python\nsummary = df.describe()\nsummary\n```\n\n<div class=\"nb-output\"><div class=\"nb-cell-label\">Out [2]</div><pre>summary statistics table</pre></div>\n\n## Conclusion\n\nSummarize what the notebook demonstrates and what should happen next.\n",
+  },
+  {
+    id: "research-poster",
+    name: "Research Poster",
+    icon: "ti-presentation",
+    desc: "Poster sections",
+    theme: "research",
+    content:
+      "# Research Poster Title\n\n**Author One** · Laboratory / Institution · {{date}}\n\nA concise project summary for the poster overview panel.\n\n## Background\n\n- What problem does this work address?\n- Why is it important now?\n- What gap remains in existing work?\n\n## Research Question\n\n> How does **intervention X** affect **outcome Y** under **condition Z**?\n\n## Methodology\n\n1. Participants / dataset\n2. Experimental or analytical procedure\n3. Measurement strategy\n\n```mermaid\nflowchart LR\n  A[Collect data] --> B[Clean]\n  B --> C[Model]\n  C --> D[Evaluate]\n```\n\n## Results\n\n| Metric | Baseline | Proposed |\n|--------|----------|----------|\n| Accuracy | 0.78 | 0.86 |\n| Error | 0.22 | 0.14 |\n\n## Model\n\n$$\n\\hat{y}=\\beta_0+\\beta_1x_1+\\beta_2x_2+\\epsilon\n$$\n\n## Discussion\n\nInterpret the result, note limitations, and connect back to the research question.\n\n## Conclusion\n\n- Main contribution\n- Practical implication\n- Next experiment\n",
+  },
+  {
+    id: "qcm-exam",
+    name: "QCM Exam",
+    icon: "ti-file-check",
+    desc: "Quiz + answer key",
+    theme: "default",
+    content:
+      "# QCM Exam\n\n**Course:** Course name · **Duration:** 45 minutes · **Date:** {{date}}\n\n## Instructions\n\nChoose the correct answer or answers. Some questions may have multiple correct responses.\n\n?? For a differentiable function $f$, what does $f'(a)$ represent?\n\n- [x] The instantaneous rate of change at $a$\n- [ ] The average value of $f$ on an interval\n- [ ] The area under the curve\n- [ ] The maximum value of $f$\n\n?! The derivative is the slope of the tangent line at the point $a$.\n\n---\n\n?? Select all statements that are true for a binary search tree.\n\n- [x] Left descendants are less than the node in a standard ordering\n- [x] Search can be $O(\\log n)$ when balanced\n- [ ] It always remains balanced automatically\n- [ ] It stores only numeric values\n\n?! A plain BST can become unbalanced; AVL and red-black trees add balancing rules.\n\n---\n\n?? Which Mermaid diagram type is best for showing messages between services?\n\n- [ ] Pie chart\n- [x] Sequence diagram\n- [ ] Gantt chart\n- [ ] Mind map\n\n?! Sequence diagrams show ordered interactions between participants.\n",
+  },
+  {
+    id: "lab-report",
+    name: "Lab Report",
+    icon: "ti-test-pipe",
+    desc: "Experiment write-up",
+    theme: "scientific",
+    content:
+      "# Laboratory Report\n\n**Experiment:** Title · **Researcher:** Name · **Date:** {{date}}\n\n## Abstract\n\nSummarize the purpose, method, key result, and conclusion in 150-200 words.\n\n## Objective\n\nState the experimental objective and hypothesis.\n\n## Materials\n\n| Item | Quantity | Notes |\n|------|----------|-------|\n| Sample A | 3 | Control group |\n| Sensor | 1 | Calibrated before use |\n\n## Procedure\n\n1. Prepare the setup.\n2. Record baseline measurements.\n3. Apply the intervention.\n4. Collect repeated measurements.\n\n## Data\n\n| Trial | Measurement 1 | Measurement 2 | Mean |\n|------:|--------------:|--------------:|-----:|\n| 1 | 12.1 | 12.4 | 12.25 |\n| 2 | 11.9 | 12.2 | 12.05 |\n\n## Analysis\n\n$$\n\\bar{x}=\\frac{1}{n}\\sum_{i=1}^{n}x_i\n$$\n\n## Discussion\n\nExplain sources of error, anomalies, and whether the hypothesis was supported.\n\n## Conclusion\n\nOne concise paragraph with the final interpretation.\n",
+  },
+  {
+    id: "algorithm-revision",
+    name: "Algorithm Revision",
+    icon: "ti-brain",
+    desc: "Study sheet",
+    theme: "technical",
+    content:
+      "# Algorithm Revision Sheet\n\n**Module:** Optimization and algorithms · **Date:** {{date}}\n\n## Core Ideas\n\n- Define the state clearly.\n- Identify the recurrence or transition.\n- Prove correctness before optimizing implementation.\n\n## Complexity Table\n\n| Algorithm | Best | Average | Worst | Space |\n|-----------|------|---------|-------|-------|\n| Binary Search | $O(1)$ | $O(\\log n)$ | $O(\\log n)$ | $O(1)$ |\n| Merge Sort | $O(n\\log n)$ | $O(n\\log n)$ | $O(n\\log n)$ | $O(n)$ |\n| Dijkstra | - | - | $O((V+E)\\log V)$ | $O(V)$ |\n\n## Dynamic Programming Pattern\n\n```text\n1. Define dp state\n2. Initialize base cases\n3. Write transition\n4. Choose iteration order\n5. Recover answer\n```\n\n## Flow\n\n```mermaid\nflowchart TD\n  A[Problem] --> B{Optimal substructure?}\n  B -->|Yes| C[Define state]\n  C --> D[Transition]\n  D --> E[Complexity]\n  B -->|No| F[Try greedy / graph / search]\n```\n\n## Practice QCM\n\n?? Which property is required for a greedy algorithm to be reliable?\n\n- [x] Greedy-choice property\n- [ ] Randomized pivot selection\n- [ ] Negative edge weights\n- [ ] Exponential state space\n\n?! A greedy proof usually shows that a locally optimal choice can be extended to a global optimum.\n",
+  },
+  {
+    id: "product-spec",
+    name: "Product Spec",
+    icon: "ti-clipboard-list",
+    desc: "Feature planning",
+    theme: "technical",
+    content:
+      "# Product Specification\n\n**Feature:** Feature name · **Owner:** Name · **Status:** Draft · **Date:** {{date}}\n\n## Problem\n\nDescribe the user pain, business context, and current workaround.\n\n## Goals\n\n- Goal one with measurable outcome\n- Goal two with measurable outcome\n\n## Non-goals\n\n- Explicitly out of scope\n- Future iteration candidate\n\n## User Stories\n\n| User | Need | Outcome |\n|------|------|---------|\n| Student | Organize notes | Faster review |\n| Teacher | Export exercises | Shareable assessment |\n\n## Proposed Flow\n\n```mermaid\nsequenceDiagram\n  participant U as User\n  participant A as App\n  participant S as Storage\n  U->>A: Create feature content\n  A->>S: Autosave draft\n  U->>A: Export package\n  A-->>U: Download\n```\n\n## Edge Cases\n\n- Empty state\n- Import failure\n- Storage quota warning\n- Offline usage\n\n## Acceptance Criteria\n\n- [ ] Criteria one\n- [ ] Criteria two\n- [ ] Regression test added\n",
+  },
+  {
+    id: "project-retro",
+    name: "Project Retrospective",
+    icon: "ti-flag",
+    desc: "Team review",
+    theme: "hbs",
+    content:
+      "# Project Retrospective\n\n**Project:** Name · **Period:** Sprint / Month · **Date:** {{date}}\n\n## Outcome Summary\n\n| Objective | Result | Notes |\n|-----------|--------|-------|\n| Ship milestone | Done | Released on time |\n| Reduce defects | Partial | More smoke tests needed |\n\n## What Went Well\n\n- Win one\n- Win two\n- Practice worth keeping\n\n## What Was Hard\n\n- Constraint one\n- Bottleneck two\n- Unexpected risk\n\n## Root Cause Map\n\n```mermaid\nmindmap\n  root((Delivery))\n    Planning\n      Scope clarity\n      Dependencies\n    Execution\n      Reviews\n      Testing\n    Operations\n      Release\n      Support\n```\n\n## Decisions\n\n| Decision | Owner | Due |\n|----------|-------|-----|\n| Add smoke test checklist | Team | Next sprint |\n\n## Follow-up\n\n- [ ] Action one\n- [ ] Action two\n",
   },
   {
     id: "minimal",
