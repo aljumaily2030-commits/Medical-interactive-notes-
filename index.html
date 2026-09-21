@@ -57,7 +57,9 @@
       href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css"
     />
     <link rel="stylesheet" href="assets/style.css" />
-  </head>
+    <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#ffffff">
+</head>
   <body>
     <div id="vue-root">
       <div id="topbar" :class="{expanded:topbarOpen}">
@@ -3043,5 +3045,12 @@
     <script>
       let app;
     </script>
-  </body>
+  <script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./service-worker.js");
+  });
+}
+</script>
+</body>
 </html>

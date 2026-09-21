@@ -121,6 +121,15 @@ const TEMPLATES = [
       "# CONTRACT AGREEMENT\n\n**Effective Date:** {{date}}\n\n**Between:** Party A and Party B\n\n---\n\n## 1. DEFINITIONS\n\n- **Services** means the professional services described herein.\n\n## 2. SCOPE\n\n1. Service description one\n2. Service description two\n\n## 3. COMPENSATION\n\nClient shall pay $[AMOUNT].\n\n## 4. GOVERNING LAW\n\nGoverned by laws of [Jurisdiction].\n",
   },
   {
+    id: "medical-study",
+    name: "Medical Study Note",
+    icon: "ti-brain",
+    desc: "Interactive medical study",
+    theme: "medical",
+    content:
+      "# {{title}}\n\n> 📚 Source-Locked Medical Study Note\n\n## Learning Objectives\n\n- Objective 1\n- Objective 2\n- Objective 3\n\n## Key Concepts\n\n> 🧠 High-Yield Point: Add an important source-backed point here.\n\n## Core Explanation\n\nWrite the explanation using the original study source. Preserve medical terminology, drug names, doses, units, diagnostic criteria, numerical values, contraindications, classifications, stages, and scores exactly unless the source itself is being corrected explicitly.\n\n## Visual Flow\n\n`mermaid\nflowchart TD\n  A[Starting concept] --> B[Mechanism]\n  B --> C[Clinical result]\n```\n\n## Comparison Table\n\n| Feature | Finding |\n|---------|---------|\n| Item 1 | Detail |\n| Item 2 | Detail |\n\n## Exam Alert\n\n> ⚠️ Exam Alert: Add a frequently tested point from the source.\n\n## Active Recall\n\nQuestion: Add a recall question here.\n\n<details>\n<summary>Show answer</summary>\n\nAnswer from the source.\n\n</details>\n\n## Interactive QCM\n\n?? Add a source-based medical question here.\n\n- [x] Correct answer\n- [ ] Wrong answer\n- [ ] Wrong answer\n- [ ] Wrong answer\n\n?! Explain why using only information supported by the study source.\n\n## Source Check\n\n- Source page: ___\n- Original wording checked: ☐\n- Numbers / doses checked: ☐\n- External information added: No\n",
+  },
+  {
     id: "medical",
     name: "Clinical Report",
     icon: "ti-stethoscope",

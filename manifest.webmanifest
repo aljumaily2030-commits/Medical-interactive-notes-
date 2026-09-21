@@ -1,0 +1,9 @@
+{
+  "name": "Medical Interactive Notes",
+  "short_name": "MedNotes",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "description": "Personal interactive medical study notes"
+}
