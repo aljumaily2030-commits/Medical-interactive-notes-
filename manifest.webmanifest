@@ -1,5 +1,5 @@
 {
-  "name": "Medical Interactive Notes",
+  "name": "MedNotes",
   "short_name": "MedNotes",
   "start_url": "./",
   "display": "standalone",

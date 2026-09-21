@@ -363,6 +363,7 @@ select {
   color: var(--acc);
   font-weight: 700;
 }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .medical-study-view {
   flex: 1;
   min-width: 0;
@@ -406,6 +407,10 @@ select {
 .medical-search-box input { width: 100%; border: 0; outline: 0; background: transparent; color: inherit; font-size: 14px; }
 .medical-search-box span { color: var(--acc); font-size: 12px; }
 .medical-study-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.medical-study-nav { display: flex; align-items: center; gap: 7px; padding: 10px max(16px, 4vw) 0; flex-wrap: wrap; }
+.medical-progress-label { margin-left: auto; color: var(--fg2); font-size: 12px; }
+.medical-progress { width: 110px; height: 7px; overflow: hidden; border-radius: 99px; background: var(--bg3); }
+.medical-progress span { display: block; height: 100%; background: var(--acc); transition: width .2s ease; }
 .medical-focus-controls {
   display: flex;
   justify-content: center;
@@ -429,6 +434,15 @@ select {
 .medical-search-hit { background: color-mix(in srgb, var(--acc) 36%, transparent); color: inherit; font-weight: 700; }
 .medical-recall-placeholder { min-height: 30px; color: var(--fg3); font-size: 13px; font-style: italic; }
 .medical-empty-search { padding: 18px 8px 8px; color: var(--fg3); font-size: 14px; }
+.medical-bookmark { position: absolute; top: 8px; right: 8px; z-index: 1; width: 34px; height: 34px; border: 0; border-radius: 5px; background: transparent; color: var(--fg3); cursor: pointer; }
+.medical-bookmark:hover, .medical-bookmark.active { color: var(--acc); background: var(--acc-bg); }
+.medical-review-note { margin-bottom: 14px; padding: 12px 14px; border-left: 3px solid var(--acc); color: var(--fg2); background: var(--acc-bg); }
+.medical-review-line { margin-bottom: 10px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 7px; background: var(--bg0); }
+.medical-review-line small, .medical-flashcard small { color: var(--fg3); }
+.medical-flashcard { padding: 20px; margin-bottom: 14px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg0); box-shadow: var(--shadow1); }
+.medical-flashcard h2 { margin: 12px 0 20px; font-size: 21px; }
+.medical-flashcard-answer { padding: 14px; margin-bottom: 14px; border-left: 3px solid var(--acc); white-space: pre-wrap; line-height: 1.7; background: var(--acc-bg); }
+.medical-flashcard-ratings { display: flex; flex-wrap: wrap; gap: 7px; }
 #editor-pane {
   display: flex;
   flex-direction: column;
@@ -4578,6 +4592,9 @@ select {
   .medical-search-box { max-width: none; flex-basis: auto; }
   .medical-study-actions { margin-left: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .medical-study-actions .tb-btn { justify-content: center; min-height: 42px; }
+  .medical-study-nav { padding-inline: 12px; }
+  .medical-study-nav .tb-btn { min-height: 42px; }
+  .medical-progress-label { margin-left: 0; }
   .medical-focus-controls { flex-wrap: wrap; gap: 8px; }
   .medical-focus-controls .tb-btn { min-height: 42px; }
   .medical-study-content { padding: 14px 10px 44px; }

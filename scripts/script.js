@@ -41,6 +41,13 @@ import {
   migrateFromLocalStorage,
 } from "./storage.js";
 
+let deferredInstallPrompt = null;
+window.addEventListener("beforeinstallprompt", (event) => {
+  event.preventDefault();
+  deferredInstallPrompt = event;
+  window.dispatchEvent(new Event("mednotes-install-available"));
+});
+
 /* ══════════════════════════════════════════════════════════════════════════
    GLOBALS / CONSTANTS (kept identical to original)
 ══════════════════════════════════════════════════════════════════════════ */
@@ -1286,6 +1293,12 @@ createApp({
     const medicalShowPageNumbers = ref(true);
     const medicalExpanded = ref({});
     const medicalRevealed = ref({});
+    const medicalMode = ref("pages");
+    const medicalBookmarks = ref({});
+    const medicalFlashcardProgress = ref({});
+    const installAvailable = ref(false);
+    let installAvailabilityListener = null;
+    let appInstalledListener = null;
     const sidebarOpen = ref(true);
     const topbarOpen = ref(false);
     const themeMode = ref("system");
@@ -1844,7 +1857,7 @@ createApp({
       const author = overrides.author || exportAuthor.value || "Author";
       const monthName = now.toLocaleString(undefined, { month: "long" });
       const values = {
-        app: "Markdown Studio",
+        app: "MedNotes",
         title,
         author,
         date: now.toLocaleDateString(),
@@ -2048,7 +2061,7 @@ createApp({
           id: `${pageIndex}-${blockIndex}`,
           source: block,
           html: decorateMedicalHtml(renderMarkdownToHtml(block), medicalSearch.value),
-          emphasis: /\b(contraindication|contraindications|treatment|diagnosis|symptoms?|signs?|complications?|mechanism)\b/i.test(block),
+          emphasis: /^#{1,6}\s|\b(contraindication|contraindications|treatment|diagnosis|symptoms?|signs?|complications?|mechanism)\b|\b(?:drug|medication|dose|dosage)\b|\d+(?:[.,]\d+)?\s?(?:mg|mcg|μg|g|kg|mL|ml|L|dL|IU|units?|mmHg|mmol\/L|mEq\/L|%)/i.test(block),
         }));
         return { id: `medical-page-${pageIndex}`, number: page.number, blocks };
       });
@@ -2104,6 +2117,74 @@ createApp({
 
     function moveMedicalFocus(delta) {
       medicalFocusPage.value = Math.max(0, Math.min(medicalPages.value.length - 1, medicalFocusPage.value + delta));
+    }
+
+    const medicalReviewBlocks = computed(() => medicalPages.value.flatMap((page) =>
+      page.blocks
+        .filter((block) => block.emphasis || /^#{1,6}\s/.test(block.source.trim()))
+        .map((block) => ({ ...block, pageId: page.id, pageNumber: page.number })),
+    ));
+
+    const medicalFlashcards = computed(() => {
+      const cards = [];
+      medicalPages.value.forEach((page) => {
+        page.blocks.forEach((block, index) => {
+          const heading = block.source.trim().match(/^#{1,6}\s+(.+?)(?:\n|$)/);
+          const next = page.blocks[index + 1];
+          if (heading && next) {
+            cards.push({
+              id: `${page.id}:${block.id}`,
+              pageNumber: page.number,
+              front: heading[0].trim(),
+              back: next.source,
+            });
+          }
+        });
+      });
+      return cards;
+    });
+
+    const medicalProgress = computed(() => {
+      if (medicalFlashcards.value.length) {
+        const reviewed = medicalFlashcards.value.filter((card) => flashcardState(card).rating !== "new").length;
+        return Math.round((reviewed / medicalFlashcards.value.length) * 100);
+      }
+      const total = medicalPages.value.reduce((sum, page) => sum + page.blocks.length, 0);
+      const bookmarked = Object.values(medicalBookmarks.value).filter(Boolean).length;
+      return total ? Math.min(100, Math.round((bookmarked / total) * 100)) : 0;
+    });
+
+    function isMedicalBookmarked(page, block) {
+      return Boolean(medicalBookmarks.value[`${page.id}:${block.id}`]);
+    }
+
+    function toggleMedicalBookmark(page, block) {
+      const key = `${page.id}:${block.id}`;
+      medicalBookmarks.value = { ...medicalBookmarks.value, [key]: !isMedicalBookmarked(page, block) };
+    }
+
+    function setMedicalMode(mode) {
+      medicalMode.value = mode;
+    }
+
+    function flashcardState(card) {
+      return medicalFlashcardProgress.value[card.id] || { answer: false, rating: "new" };
+    }
+
+    function showFlashcardAnswer(card) {
+      medicalFlashcardProgress.value = { ...medicalFlashcardProgress.value, [card.id]: { ...flashcardState(card), answer: true } };
+    }
+
+    function rateFlashcard(card, rating) {
+      medicalFlashcardProgress.value = { ...medicalFlashcardProgress.value, [card.id]: { answer: false, rating, reviewedAt: Date.now() } };
+    }
+
+    async function installApp() {
+      if (!deferredInstallPrompt) return;
+      deferredInstallPrompt["prompt"]();
+      await deferredInstallPrompt.userChoice;
+      deferredInstallPrompt = null;
+      installAvailable.value = false;
     }
 
     const wordCount = computed(
@@ -2932,7 +3013,7 @@ createApp({
       }
       const data = await exportWorkspaceData();
       const backup = {
-        app: "markdown-studio",
+        app: "mednotes",
         schemaVersion: 1,
         ...data,
       };
@@ -2941,7 +3022,7 @@ createApp({
         new Blob([JSON.stringify(backup, null, 2)], {
           type: "application/json",
         }),
-        `markdown-studio-backup-${stamp}.json`,
+        `mednotes-backup-${stamp}.json`,
       );
       checkStorageQuota("Workspace");
     }
@@ -2952,7 +3033,7 @@ createApp({
       if (!file) return;
       try {
         const data = JSON.parse(await file.text());
-        if (data?.app !== "markdown-studio" || !Array.isArray(data.files)) {
+        if (!['mednotes', 'markdown-studio'].includes(data?.app) || !Array.isArray(data.files)) {
           notify("Invalid workspace backup file", "warn");
           return;
         }
@@ -3075,6 +3156,7 @@ createApp({
           const pages = [
             document.getElementById("preview-page"),
             document.querySelector(".focus-inner"),
+            document.querySelector(".medical-study-view"),
           ].filter(Boolean);
           Promise.all(
             pages.map((page) =>
@@ -4478,7 +4560,7 @@ createApp({
 
     function openPosterBuilder() {
       posterTitle.value = getPosterSourceTitle();
-      posterSubtitle.value = exportAuthor.value || "Markdown Studio Poster";
+      posterSubtitle.value = exportAuthor.value || "MedNotes Poster";
       resetPosterLayout();
       showExport.value = false;
       showPosterBuilder.value = true;
@@ -4529,7 +4611,7 @@ createApp({
 
     function getExportMetadata() {
       return {
-        app: "Markdown Studio",
+        app: "MedNotes",
         exportedAt: new Date().toISOString(),
         file: {
           id: activeFile.value?.id || "",
@@ -4904,7 +4986,7 @@ ${body}
       });
 
       const blob = createZipBlob(entries);
-      downloadBlob(blob, `markdown-studio-${new Date().toISOString().slice(0, 10)}.zip`);
+      downloadBlob(blob, `mednotes-${new Date().toISOString().slice(0, 10)}.zip`);
       notify("Workspace ZIP exported", "success", 1600);
     }
 
@@ -5227,6 +5309,12 @@ ${body}
       if (settings.topbarOpen !== undefined)
         topbarOpen.value = settings.topbarOpen;
       if (settings.viewMode) viewMode.value = settings.viewMode;
+      if (settings.medicalStudyData) {
+        const study = settings.medicalStudyData;
+        medicalMode.value = study.mode || "pages";
+        medicalBookmarks.value = study.bookmarks || {};
+        medicalFlashcardProgress.value = study.flashcardProgress || {};
+      }
       if (settings.editorWidth) editorWidth.value = settings.editorWidth;
       if (settings.activePanel) activePanel.value = settings.activePanel;
       if (settings.showStylePanel !== undefined)
@@ -5297,6 +5385,11 @@ ${body}
       // Global keyboard listener
       window.addEventListener("keydown", onWindowKeydown);
       window.addEventListener("click", closeAllCtx);
+      installAvailabilityListener = () => { installAvailable.value = Boolean(deferredInstallPrompt); };
+      window.addEventListener("mednotes-install-available", installAvailabilityListener);
+      installAvailabilityListener();
+      appInstalledListener = () => { deferredInstallPrompt = null; installAvailable.value = false; };
+      window.addEventListener("appinstalled", appInstalledListener);
 
       // Snapshot timer
       snapshotTimer = setInterval(() => {
@@ -5307,6 +5400,11 @@ ${body}
       watch(sidebarOpen, (v) => setSetting("sidebarOpen", v));
       watch(topbarOpen, (v) => setSetting("topbarOpen", v));
       watch(viewMode, (v) => setSetting("viewMode", v));
+      watch([medicalMode, medicalBookmarks, medicalFlashcardProgress], () => setSetting("medicalStudyData", {
+        mode: medicalMode.value,
+        bookmarks: medicalBookmarks.value,
+        flashcardProgress: medicalFlashcardProgress.value,
+      }), { deep: true });
       watch(editorWidth, (v) => setSettingDebounced("editorWidth", v));
       watch(activePanel, (v) => setSetting("activePanel", v));
       watch(showStylePanel, (v) => setSetting("showStylePanel", v));
@@ -5318,6 +5416,8 @@ ${body}
     onUnmounted(() => {
       window.removeEventListener("keydown", onWindowKeydown);
       window.removeEventListener("click", closeAllCtx);
+      if (installAvailabilityListener) window.removeEventListener("mednotes-install-available", installAvailabilityListener);
+      if (appInstalledListener) window.removeEventListener("appinstalled", appInstalledListener);
       if (systemThemeMedia && systemThemeListener)
         systemThemeMedia.removeEventListener?.("change", systemThemeListener);
       if (systemThemeMedia && systemThemeListener && !systemThemeMedia.removeEventListener)
@@ -5367,6 +5467,10 @@ ${body}
       medicalPages,
       medicalVisiblePages,
       medicalMatchCount,
+      medicalMode,
+      medicalBookmarks,
+      medicalFlashcardProgress,
+      installAvailable,
       sidebarOpen,
       topbarOpen,
       themeMode,
@@ -5554,6 +5658,16 @@ ${body}
       isMedicalRevealed,
       setMedicalFocus,
       moveMedicalFocus,
+      medicalReviewBlocks,
+      medicalFlashcards,
+      medicalProgress,
+      isMedicalBookmarked,
+      toggleMedicalBookmark,
+      setMedicalMode,
+      flashcardState,
+      showFlashcardAnswer,
+      rateFlashcard,
+      installApp,
       wordCount,
       charCount,
       lineCount,

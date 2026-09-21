@@ -1,6 +1,6 @@
 <!doctype html>
 <!--
-  Markdown Studio
+  MedNotes
   Copyright (c) 2026 MOUSDIK ISMAIL
   Licensed under the MIT License (see LICENSE)
 -->
@@ -25,8 +25,8 @@
       sizes="16x16"
       href="./assets/images/favicon-16x16.png"
     />
-    <link rel="manifest" href="./scripts/site.webmanifest" />
-    <title>Markdown Studio</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <title>MedNotes</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.4.21/vue.global.prod.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
@@ -57,7 +57,6 @@
       href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css"
     />
     <link rel="stylesheet" href="assets/style.css" />
-    <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#ffffff">
 </head>
   <body>
@@ -65,7 +64,7 @@
       <div id="topbar" :class="{expanded:topbarOpen}">
         <div class="logo">
           <div class="logo-mark"><i class="ti ti-markdown"></i></div>
-          <span class="logo-text">Studio</span>
+          <span class="logo-text">MedNotes</span>
         </div>
         <input
           ref="mdFileInput"
@@ -189,7 +188,7 @@
               @click="openMermaidBuilder"
               title="Mermaid Diagram Builder"
             >
-              <i class="ti ti-topology-star"></i>Diagram
+              <i class="ti ti-topology-star"></i>Diagram Workspace
             </button>
             <div class="tb-group-more">
               <button class="tb-btn tb-accent" @click="openLatexBuilder" title="LaTeX Math Helper">
@@ -390,14 +389,43 @@
                 <button class="tb-btn" @click="setAllMedicalPages(false)" title="Collapse All"><i class="ti ti-arrows-minimize"></i>Collapse All</button>
                 <button class="tb-btn" :class="{active:medicalShowPageNumbers}" @click="medicalShowPageNumbers=!medicalShowPageNumbers" title="Show or hide source page numbers"><i class="ti ti-file-description"></i>{{medicalShowPageNumbers?'Pages':'Hidden'}}</button>
                 <button class="tb-btn" :class="{active:medicalFocusMode}" @click="setMedicalFocus(!medicalFocusMode)" title="Focus Mode"><i class="ti ti-focus-2"></i>Focus Mode</button>
+                <button v-if="installAvailable" class="tb-btn tb-primary" @click="installApp" title="Install App"><i class="ti ti-download"></i>Install App</button>
               </div>
+            </div>
+            <div class="medical-study-nav">
+              <button class="tb-btn" :class="{active:medicalMode==='pages'}" @click="setMedicalMode('pages')">Pages</button>
+              <button class="tb-btn" :class="{active:medicalMode==='review'}" @click="setMedicalMode('review')">Quick Review</button>
+              <button class="tb-btn" :class="{active:medicalMode==='flashcards'}" @click="setMedicalMode('flashcards')">Flashcards</button>
+              <span class="medical-progress-label">Progress {{medicalProgress}}%</span>
+              <div class="medical-progress"><span :style="{width:medicalProgress+'%'}"></span></div>
             </div>
             <div v-if="medicalFocusMode" class="medical-focus-controls">
               <button class="tb-btn" :disabled="medicalFocusPage===0" @click="moveMedicalFocus(-1)"><i class="ti ti-chevron-left"></i>Previous page</button>
               <span>Page {{medicalFocusPage+1}} / {{medicalPages.length}}</span>
               <button class="tb-btn" :disabled="medicalFocusPage>=medicalPages.length-1" @click="moveMedicalFocus(1)">Next page<i class="ti ti-chevron-right"></i></button>
             </div>
-            <div class="medical-study-content">
+            <div v-if="medicalMode==='flashcards'" class="medical-study-content medical-flashcards">
+              <div v-if="!medicalFlashcards.length" class="medical-empty-search">No source-based flashcards available. Add headings followed by explanatory source text.</div>
+              <article v-for="card in medicalFlashcards" :key="card.id" class="medical-flashcard">
+                <small>Source Page {{card.pageNumber}} · Source-based Recall</small>
+                <h2>{{card.front}}</h2>
+                <div v-if="flashcardState(card).answer" class="medical-flashcard-answer">{{card.back}}</div>
+                <button v-else class="tb-btn tb-primary" @click="showFlashcardAnswer(card)">Show answer</button>
+                <div v-if="flashcardState(card).answer" class="medical-flashcard-ratings">
+                  <button class="tb-btn" @click="rateFlashcard(card,'again')">Again</button>
+                  <button class="tb-btn" @click="rateFlashcard(card,'good')">Good</button>
+                  <button class="tb-btn" @click="rateFlashcard(card,'easy')">Easy</button>
+                </div>
+              </article>
+            </div>
+            <div v-else-if="medicalMode==='review'" class="medical-study-content">
+              <div class="medical-review-note">Quick Review shows exact source lines only. No facts are generated or rewritten.</div>
+              <article v-for="block in medicalReviewBlocks" :key="block.id" class="medical-review-line">
+                <small>📄 Source Page {{block.pageNumber}}</small>
+                <div v-html="block.html"></div>
+              </article>
+            </div>
+            <div v-else class="medical-study-content">
               <section v-for="page in medicalVisiblePages" :key="page.id" class="medical-page-section">
                 <button class="medical-page-heading" @click="toggleMedicalPage(page)" :aria-expanded="isMedicalPageOpen(page)">
                   <span>📄 Source Page <span v-if="medicalShowPageNumbers">{{page.number}}</span><span v-else>•</span></span>
@@ -405,6 +433,7 @@
                 </button>
                 <div v-show="isMedicalPageOpen(page)" class="medical-page-body">
                   <div v-for="block in page.blocks" v-show="medicalBlockMatches(block)" :key="block.id" class="medical-block" :class="{'medical-key-block':block.emphasis,'medical-recall-hidden':!isMedicalRevealed(page,block)}" @click="toggleMedicalRecall(page,block)" tabindex="0" @keyup.enter="toggleMedicalRecall(page,block)">
+                    <button class="medical-bookmark" :class="{active:isMedicalBookmarked(page,block)}" @click.stop="toggleMedicalBookmark(page,block)" :title="isMedicalBookmarked(page,block)?'Remove bookmark':'Bookmark paragraph'"><i :class="isMedicalBookmarked(page,block)?'ti ti-bookmark-filled':'ti ti-bookmark'"></i></button>
                     <div v-if="isMedicalRevealed(page,block)" v-html="block.html"></div>
                     <div v-else class="medical-recall-placeholder">Tap to reveal original text</div>
                   </div>
@@ -2601,10 +2630,10 @@
               <div class="sp-title">Workspace</div>
               <div class="workspace-tools">
                 <button class="btn btn-sm" @click="backupWorkspace">
-                  <i class="ti ti-database-export"></i> Backup
+                  <i class="ti ti-database-export"></i> Backup Everything
                 </button>
                 <button class="btn btn-sm" @click="triggerWorkspaceRestore">
-                  <i class="ti ti-database-import"></i> Restore
+                  <i class="ti ti-database-import"></i> Restore Backup
                 </button>
               </div>
               <div class="settings-hint">
@@ -2757,7 +2786,7 @@
         <div class="modal-box modal-xl tutorial-modal">
           <div class="modal-header">
             <div class="modal-title">
-              <i class="ti ti-help-hexagon"></i>Markdown Studio Guide
+              <i class="ti ti-help-hexagon"></i>MedNotes Guide<span class="sr-only">Markdown Studio Guide</span>
             </div>
             <button class="modal-close" @click="showTutorial=false">
               <i class="ti ti-x"></i>
