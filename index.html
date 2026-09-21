@@ -70,7 +70,7 @@
         <input
           ref="mdFileInput"
           type="file"
-          accept=".md,.markdown,.txt,.ipynb,application/x-ipynb+json"
+          accept=".md,.markdown,.txt,.ipynb,application/x-ipynb+json,.pdf,application/pdf"
           style="display: none"
           @change="onMdFileUpload"
         />
@@ -116,6 +116,9 @@
             </button>
             <button class="tb-btn" @click="triggerMdUpload" title="Open Markdown or Notebook">
               <i class="ti ti-folder-open"></i>Open
+            </button>
+            <button class="tb-btn tb-medical" :class="{active:viewMode==='medical-study'}" @click="viewMode='medical-study'" title="Medical Study">
+              🩺 Medical Study
             </button>
 
           </div>
@@ -378,8 +381,41 @@
           </div>
         </div>
         <div id="main">
+          <section v-if="viewMode==='medical-study'" class="medical-study-view">
+            <div class="medical-study-toolbar">
+              <div class="medical-study-title"><span>🩺</span><strong>Medical Study</strong><small>{{activeFile?.name||'untitled.md'}}</small></div>
+              <label class="medical-search-box"><i class="ti ti-search"></i><input v-model="medicalSearch" type="search" placeholder="Search inside note" aria-label="Search inside note"><span v-if="medicalSearch">{{medicalMatchCount}}</span></label>
+              <div class="medical-study-actions">
+                <button class="tb-btn" @click="setAllMedicalPages(true)" title="Expand All"><i class="ti ti-arrows-maximize"></i>Expand All</button>
+                <button class="tb-btn" @click="setAllMedicalPages(false)" title="Collapse All"><i class="ti ti-arrows-minimize"></i>Collapse All</button>
+                <button class="tb-btn" :class="{active:medicalShowPageNumbers}" @click="medicalShowPageNumbers=!medicalShowPageNumbers" title="Show or hide source page numbers"><i class="ti ti-file-description"></i>{{medicalShowPageNumbers?'Pages':'Hidden'}}</button>
+                <button class="tb-btn" :class="{active:medicalFocusMode}" @click="setMedicalFocus(!medicalFocusMode)" title="Focus Mode"><i class="ti ti-focus-2"></i>Focus Mode</button>
+              </div>
+            </div>
+            <div v-if="medicalFocusMode" class="medical-focus-controls">
+              <button class="tb-btn" :disabled="medicalFocusPage===0" @click="moveMedicalFocus(-1)"><i class="ti ti-chevron-left"></i>Previous page</button>
+              <span>Page {{medicalFocusPage+1}} / {{medicalPages.length}}</span>
+              <button class="tb-btn" :disabled="medicalFocusPage>=medicalPages.length-1" @click="moveMedicalFocus(1)">Next page<i class="ti ti-chevron-right"></i></button>
+            </div>
+            <div class="medical-study-content">
+              <section v-for="page in medicalVisiblePages" :key="page.id" class="medical-page-section">
+                <button class="medical-page-heading" @click="toggleMedicalPage(page)" :aria-expanded="isMedicalPageOpen(page)">
+                  <span>📄 Source Page <span v-if="medicalShowPageNumbers">{{page.number}}</span><span v-else>•</span></span>
+                  <i :class="isMedicalPageOpen(page)?'ti ti-chevron-up':'ti ti-chevron-down'"></i>
+                </button>
+                <div v-show="isMedicalPageOpen(page)" class="medical-page-body">
+                  <div v-for="block in page.blocks" v-show="medicalBlockMatches(block)" :key="block.id" class="medical-block" :class="{'medical-key-block':block.emphasis,'medical-recall-hidden':!isMedicalRevealed(page,block)}" @click="toggleMedicalRecall(page,block)" tabindex="0" @keyup.enter="toggleMedicalRecall(page,block)">
+                    <div v-if="isMedicalRevealed(page,block)" v-html="block.html"></div>
+                    <div v-else class="medical-recall-placeholder">Tap to reveal original text</div>
+                  </div>
+                  <div v-if="medicalSearch && !page.blocks.some(medicalBlockMatches)" class="medical-empty-search">No matching content on this page.</div>
+                </div>
+              </section>
+            </div>
+          </section>
           <div
             id="editor-pane"
+            v-else
             :class="{hidden:viewMode==='preview'}"
             :style="viewMode==='split'?{flex:'0 0 '+editorWidth+'px',minWidth:'180px'}:{flex:'1'}"
           >
@@ -659,7 +695,7 @@
             v-show="viewMode==='split'"
             @mousedown="startResize"
           ></div>
-          <div id="preview-pane" :class="{hidden:viewMode==='editor'}">
+          <div v-if="viewMode!=='medical-study'" id="preview-pane" :class="{hidden:viewMode==='editor'}">
             <div class="pane-toolbar">
               <span class="pane-label">Preview</span>
               <div class="tool-sep"></div>

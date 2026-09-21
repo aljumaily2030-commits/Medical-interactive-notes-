@@ -11,6 +11,12 @@
 
 import { createEditor } from "./editor.js";
 import { createMermaidRenderer } from "./preview/mermaid-renderer.js";
+import { getDocument, GlobalWorkerOptions } from "./vendor/pdfjs/pdf.mjs";
+
+GlobalWorkerOptions.workerSrc = new URL(
+  "./vendor/pdfjs/pdf.worker.mjs",
+  import.meta.url,
+).toString();
 import {
   openDB,
   getAllFiles,
@@ -555,6 +561,22 @@ function notebookToMarkdown(notebook, fileName = "notebook.ipynb") {
   });
 
   return chunks.filter(Boolean).join("\n\n");
+}
+
+async function pdfToMarkdown(file) {
+  const pdf = await getDocument({ data: await file.arrayBuffer() }).promise;
+  const pages = [];
+
+  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+    const page = await pdf.getPage(pageNumber);
+    const textContent = await page.getTextContent();
+    const text = textContent.items
+      .map((item) => `${item.str}${item.hasEOL ? "\n" : ""}`)
+      .join("");
+    pages.push(`<!-- SOURCE_PAGE:${pageNumber} -->\n## 📄 Source Page ${pageNumber}\n\n${text}`);
+  }
+
+  return pages.join("\n\n");
 }
 
 // Global copy helper referenced in rendered HTML
@@ -1258,6 +1280,12 @@ createApp({
 
     // view
     const viewMode = ref("split");
+    const medicalSearch = ref("");
+    const medicalFocusMode = ref(false);
+    const medicalFocusPage = ref(0);
+    const medicalShowPageNumbers = ref(true);
+    const medicalExpanded = ref({});
+    const medicalRevealed = ref({});
     const sidebarOpen = ref(true);
     const topbarOpen = ref(false);
     const themeMode = ref("system");
@@ -1951,6 +1979,132 @@ createApp({
     const renderedHtml = computed(() =>
       previewSegments.value.map((segment) => segment.html).join(""),
     );
+
+    function escapeRegExp(value) {
+      return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+
+    function decorateMedicalHtml(html, query = "") {
+      if (typeof DOMParser === "undefined") return html;
+      const doc = new DOMParser().parseFromString(`<div>${html}</div>`, "text/html");
+      const root = doc.body.firstElementChild;
+      if (!root) return html;
+      const emphasis = /\b\d+(?:[.,]\d+)?\s?(?:mg|mcg|μg|g|kg|mL|ml|L|dL|IU|units?|mmHg|mmol\/L|mEq\/L|%)\b/gi;
+      const search = String(query || "").trim();
+      const searchPattern = search ? new RegExp(escapeRegExp(search), "gi") : null;
+      const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      const nodes = [];
+      let node;
+      while ((node = walker.nextNode())) {
+        if (!/^(SCRIPT|STYLE|MARK)$/i.test(node.parentElement?.tagName || "")) nodes.push(node);
+      }
+      nodes.forEach((textNode) => {
+        const text = textNode.nodeValue || "";
+        const pattern = searchPattern
+          ? new RegExp(`(${searchPattern.source})|(${emphasis.source})`, "gi")
+          : emphasis;
+        if (!pattern.test(text)) {
+          pattern.lastIndex = 0;
+          return;
+        }
+        pattern.lastIndex = 0;
+        const fragment = doc.createDocumentFragment();
+        let cursor = 0;
+        text.replace(pattern, (match, searchMatch, emphasisMatch, offset) => {
+          if (offset > cursor) fragment.appendChild(doc.createTextNode(text.slice(cursor, offset)));
+          const mark = doc.createElement("mark");
+          mark.className = searchMatch ? "medical-search-hit" : "medical-emphasis";
+          mark.textContent = match;
+          fragment.appendChild(mark);
+          cursor = offset + match.length;
+          return match;
+        });
+        if (cursor < text.length) fragment.appendChild(doc.createTextNode(text.slice(cursor)));
+        textNode.parentNode?.replaceChild(fragment, textNode);
+      });
+      return root.innerHTML;
+    }
+
+    function buildMedicalPages(source) {
+      const text = String(source || "");
+      const marker = /<!--[ \t]*SOURCE_PAGE[ \t]*:[ \t]*(\d+)[ \t]*-->/gi;
+      const matches = [...text.matchAll(marker)];
+      const chunks = [];
+      if (!matches.length) {
+        chunks.push({ number: 1, content: text });
+      } else {
+        if (matches[0].index > 0 && text.slice(0, matches[0].index).trim()) {
+          chunks.push({ number: 1, content: text.slice(0, matches[0].index) });
+        }
+        matches.forEach((match, index) => {
+          const start = match.index + match[0].length;
+          const end = matches[index + 1]?.index ?? text.length;
+          chunks.push({ number: Number(match[1]), content: text.slice(start, end) });
+        });
+      }
+      return chunks.map((page, pageIndex) => {
+        const rawBlocks = page.content.split(/\n\s*\n/).filter((block) => block.trim());
+        const blocks = (rawBlocks.length ? rawBlocks : [page.content]).map((block, blockIndex) => ({
+          id: `${pageIndex}-${blockIndex}`,
+          source: block,
+          html: decorateMedicalHtml(renderMarkdownToHtml(block), medicalSearch.value),
+          emphasis: /\b(contraindication|contraindications|treatment|diagnosis|symptoms?|signs?|complications?|mechanism)\b/i.test(block),
+        }));
+        return { id: `medical-page-${pageIndex}`, number: page.number, blocks };
+      });
+    }
+
+    const medicalPages = computed(() => buildMedicalPages(currentContent.value));
+    const medicalVisiblePages = computed(() =>
+      medicalFocusMode.value
+        ? medicalPages.value.slice(medicalFocusPage.value, medicalFocusPage.value + 1)
+        : medicalPages.value,
+    );
+    const medicalMatchCount = computed(() => {
+      const query = medicalSearch.value.trim().toLowerCase();
+      if (!query) return 0;
+      return medicalPages.value.reduce(
+        (count, page) => count + page.blocks.filter((block) => block.source.toLowerCase().includes(query)).length,
+        0,
+      );
+    });
+
+    function medicalBlockMatches(block) {
+      const query = medicalSearch.value.trim().toLowerCase();
+      return !query || block.source.toLowerCase().includes(query);
+    }
+
+    function isMedicalPageOpen(page) {
+      return medicalExpanded.value[page.id] !== false;
+    }
+
+    function toggleMedicalPage(page) {
+      medicalExpanded.value = { ...medicalExpanded.value, [page.id]: !isMedicalPageOpen(page) };
+    }
+
+    function setAllMedicalPages(open) {
+      const next = {};
+      medicalPages.value.forEach((page) => { next[page.id] = open; });
+      medicalExpanded.value = next;
+    }
+
+    function toggleMedicalRecall(page, block) {
+      const key = `${page.id}:${block.id}`;
+      medicalRevealed.value = { ...medicalRevealed.value, [key]: !medicalRevealed.value[key] };
+    }
+
+    function isMedicalRevealed(page, block) {
+      return medicalRevealed.value[`${page.id}:${block.id}`] !== false;
+    }
+
+    function setMedicalFocus(enabled) {
+      medicalFocusMode.value = enabled;
+      if (enabled) medicalFocusPage.value = Math.min(medicalFocusPage.value, Math.max(0, medicalPages.value.length - 1));
+    }
+
+    function moveMedicalFocus(delta) {
+      medicalFocusPage.value = Math.max(0, Math.min(medicalPages.value.length - 1, medicalFocusPage.value + delta));
+    }
 
     const wordCount = computed(
       () =>
@@ -2672,10 +2826,29 @@ createApp({
     async function onMdFileUpload(e) {
       const file = e.target.files[0];
       if (!file) return;
-      const text = await file.text();
+      const isPdf = /\.pdf$/i.test(file.name);
       const isNotebook = /\.ipynb$/i.test(file.name);
-      let content = text;
+      let text;
+      let content;
       let name = file.name;
+      if (isPdf) {
+        try {
+          content = await pdfToMarkdown(file);
+        } catch (error) {
+          notify(error?.message || "Could not import PDF", "warn");
+          e.target.value = "";
+          return;
+        }
+        if (!content.replace(/<!-- SOURCE_PAGE:\d+ -->/g, "").replace(/## 📄 Source Page \d+/g, "").trim()) {
+          notify("PDF contains no extractable text", "warn");
+          e.target.value = "";
+          return;
+        }
+        name = file.name.replace(/\.pdf$/i, ".md");
+      } else {
+        text = await file.text();
+        content = text;
+      }
       if (isNotebook) {
         try {
           content = notebookToMarkdown(JSON.parse(text), file.name);
@@ -2698,7 +2871,15 @@ createApp({
       files.value.unshift(f);
       persistFileOrder();
       await switchFile(f.id);
-      notify(isNotebook ? "Notebook imported" : "File uploaded", "success", 1400);
+      notify(
+        isPdf
+          ? "PDF imported with source page markers"
+          : isNotebook
+            ? "Notebook imported"
+            : "File uploaded",
+        "success",
+        1400,
+      );
       e.target.value = "";
     }
 
@@ -5179,6 +5360,13 @@ ${body}
       unsaved,
       autosaveStatus,
       viewMode,
+      medicalSearch,
+      medicalFocusMode,
+      medicalFocusPage,
+      medicalShowPageNumbers,
+      medicalPages,
+      medicalVisiblePages,
+      medicalMatchCount,
       sidebarOpen,
       topbarOpen,
       themeMode,
@@ -5358,6 +5546,14 @@ ${body}
       currentContent,
       previewSegments,
       renderedHtml,
+      medicalBlockMatches,
+      isMedicalPageOpen,
+      toggleMedicalPage,
+      setAllMedicalPages,
+      toggleMedicalRecall,
+      isMedicalRevealed,
+      setMedicalFocus,
+      moveMedicalFocus,
       wordCount,
       charCount,
       lineCount,

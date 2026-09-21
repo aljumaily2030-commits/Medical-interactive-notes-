@@ -358,6 +358,77 @@ select {
   overflow: hidden;
   min-width: 0;
 }
+.tb-medical {
+  border-color: color-mix(in srgb, var(--acc) 45%, var(--border));
+  color: var(--acc);
+  font-weight: 700;
+}
+.medical-study-view {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--bg1);
+  color: var(--fg0);
+}
+.medical-study-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px max(16px, 4vw);
+  background: color-mix(in srgb, var(--bg0) 94%, transparent);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(10px);
+}
+.medical-study-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: max-content;
+}
+.medical-study-title strong { font-size: 17px; }
+.medical-study-title small { color: var(--fg3); max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+.medical-search-box {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: 1 1 220px;
+  max-width: 360px;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg1);
+}
+.medical-search-box input { width: 100%; border: 0; outline: 0; background: transparent; color: inherit; font-size: 14px; }
+.medical-search-box span { color: var(--acc); font-size: 12px; }
+.medical-study-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.medical-focus-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px 0;
+  color: var(--fg2);
+}
+.medical-study-content { width: min(900px, 100%); margin: 0 auto; padding: 24px max(16px, 4vw) 60px; box-sizing: border-box; }
+.medical-page-section { margin-bottom: 14px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg0); box-shadow: var(--shadow1); overflow: hidden; }
+.medical-page-heading { width: 100%; min-height: 52px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border: 0; background: var(--bg2); color: var(--fg0); font-size: 16px; font-weight: 700; text-align: left; cursor: pointer; }
+.medical-page-heading:hover { color: var(--acc); }
+.medical-page-body { padding: 8px 16px 16px; }
+.medical-block { position: relative; padding: 13px 14px; margin-top: 9px; border-left: 3px solid transparent; border-radius: 6px; cursor: pointer; font-size: 16px; line-height: 1.7; overflow-wrap: anywhere; }
+.medical-block:hover, .medical-block:focus { background: var(--bg2); outline: none; }
+.medical-key-block { border-left-color: var(--acc); background: color-mix(in srgb, var(--acc-bg) 48%, transparent); }
+.medical-block p:first-child { margin-top: 0; }
+.medical-block p:last-child { margin-bottom: 0; }
+.medical-block mark { padding: 1px 3px; border-radius: 3px; }
+.medical-emphasis { background: color-mix(in srgb, var(--warn) 30%, transparent); color: inherit; font-weight: 700; }
+.medical-search-hit { background: color-mix(in srgb, var(--acc) 36%, transparent); color: inherit; font-weight: 700; }
+.medical-recall-placeholder { min-height: 30px; color: var(--fg3); font-size: 13px; font-style: italic; }
+.medical-empty-search { padding: 18px 8px 8px; color: var(--fg3); font-size: 14px; }
 #editor-pane {
   display: flex;
   flex-direction: column;
@@ -4501,6 +4572,18 @@ select {
     flex-wrap: wrap;
     margin-left: 0;
   }
+  .medical-study-toolbar { align-items: stretch; flex-direction: column; padding: 10px 12px; }
+  .medical-study-title { justify-content: space-between; }
+  .medical-study-title small { max-width: 45vw; }
+  .medical-search-box { max-width: none; flex-basis: auto; }
+  .medical-study-actions { margin-left: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .medical-study-actions .tb-btn { justify-content: center; min-height: 42px; }
+  .medical-focus-controls { flex-wrap: wrap; gap: 8px; }
+  .medical-focus-controls .tb-btn { min-height: 42px; }
+  .medical-study-content { padding: 14px 10px 44px; }
+  .medical-page-heading { min-height: 56px; padding-inline: 13px; }
+  .medical-page-body { padding-inline: 8px; }
+  .medical-block { padding: 13px 10px; font-size: 17px; line-height: 1.75; }
   #topbar.expanded .tb-file-chip {
     flex: 1 1 140px;
   }
